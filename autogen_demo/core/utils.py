@@ -1,4 +1,6 @@
-"""Utility functions for the multi-agent report generation system."""
+"""Utility functions for the multi-agent report generation system.
+多智能体报告生成系统的工具函数。
+"""
 
 import logging
 import os
@@ -7,11 +9,13 @@ import requests
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .models import SearchResult, ImageAnalysis, TableData
+from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
 from . import config
+from .logging_config import get_logger
 
-logger = logging.getLogger(__name__)
-
+# 获取日志记录器
+logger = get_logger(__name__, "Utils")
+logger.info(f"Utils logger initialized")
 # --- API Configuration is now managed in core/config.py ---
 
 
@@ -35,15 +39,51 @@ def _make_api_request(
         requests.exceptions.HTTPError: If the request fails after all retries.
     """
     try:
-        response = requests.request(method, url, headers=headers, timeout=30, **kwargs)
+        response = requests.request(method, url, headers=headers, timeout=60, **kwargs)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        logger.error(f"API request to {url} failed: {e}")
+        logger.error(f"API请求失败，URL: {url}，错误: {e}")
         raise
 
-
-def search_bochai(topic: str, count: int = 5) -> List[SearchResult]:
+def extract_bocah_data(response)->tuple[List[SearchResultNews], List[SearchResultImage]]:
+    """
+    从bocah API返回数据中提取新闻和图片信息
+    
+    Args:
+        response (dict): bocah API的响应数据
+        
+    Returns:
+        tuple: (news_data, image_data) - 新闻数据列表和图片数据列表
+    """
+    news_data_result = []
+    image_data_result = []
+    
+    if response and isinstance(response, dict) and "data" in response:
+        # 提取新闻数据
+        if "webPages" in response["data"] and "value" in response["data"]["webPages"]:
+            news_data = response["data"]["webPages"]["value"]
+            news_data_result = [
+                SearchResultNews(
+                    title=item.get("name", ""),
+                    url=item.get("url", ""),
+                    summary=item.get("summary", ""),
+                )
+                for item in news_data
+            ]
+        
+        # 提取图片数据
+        if "images" in response["data"] and "value" in response["data"]["images"]:
+            image_data = response["data"]["images"]["value"]
+            image_data_result = [
+                SearchResultImage(
+                    image_src=item.get("contentUrl", "")
+                )
+                for item in image_data
+            ]
+    
+    return news_data_result, image_data_result 
+def search_bochai(topic: str, count: int = 5) -> List[SearchResultNews|SearchResultImage]:
     """
     Performs a search using the Bochai AI Search API.
 
@@ -55,52 +95,85 @@ def search_bochai(topic: str, count: int = 5) -> List[SearchResult]:
         A list of SearchResult objects.
     """
     if not config.BOCHAI_URL:
-        logger.error("BOCHAI_API_URL is not configured.")
+        logger.error("BOCHAI_API_URL未配置。")
         return []
-    logger.info(f"Searching Bochai for: {topic}")
+    logger.info(f"正在使用Bochai搜索: {topic}")
+    logger.info(f"Bochai API URL: {config.BOCHAI_URL}")
+
     try:
+        request_body = {
+            "query": topic,
+            "count": count,
+            "freshness": "noLimit",
+            "summary": True
+        }
         response = _make_api_request(
-            config.BOCHAI_URL, params={"q": topic, "count": count}
+            config.BOCHAI_URL, 
+            method="POST", 
+            json=request_body
         )
-        # Assuming the API returns a list of result objects
-        return [SearchResult(**item) for item in response.get("results", [])]
+        logger.info(f"Bochai Body: {request_body}")
+        news_data, image_data = extract_bocah_data(response)
+        return [*news_data, *image_data]
     except Exception as e:
-        logger.error(f"Bochai search failed: {e}")
+        logger.error(f"Bochai搜索失败: {e}")
         return []
 
 
-def search_searxng(topic: str, count: int = 5) -> List[SearchResult]:
+def search_searxng(topic: str, page: int = 1, language: str = "zh-CN", categories: str = "general") -> List[SearchResultNews|SearchResultImage]:
     """
     Performs a search using the SearXNG Search API.
 
     Args:
         topic: The search query topic.
-        count: The number of results to return.
+        page: The page number for pagination.
+        language: The language for search results, defaults to zh-CN.
+        categories: The search category, either "general" or "images".
 
     Returns:
         A list of SearchResult objects.
     """
+    if categories not in ["general", "images"]:
+        logger.warning(f"无效的类别 '{categories}'，默认使用 'general'")
+        categories = "general"
+
     if not config.SEARXNG_URL:
-        logger.error("SEARXNG_API_URL is not configured.")
+        logger.error("SEARXNG_API_URL未配置。")
         return []
-    logger.info(f"Searching SearXNG for: {topic}")
+    logger.info(f"正在使用SearXNG搜索: {topic}")
     try:
+        request_body = {
+            "q": topic,
+            "format": "json",
+            "pageno": page,
+            "language": language,
+            "categories": categories
+        }
         response = _make_api_request(
-            config.SEARXNG_URL, params={"q": topic, "format": "json", "count": count}
+        config.SEARXNG_URL, 
+        params=request_body
         )
+        logger.info(f"SearXNG Body: {request_body}")
         # Adapt the response structure to SearchResult model
-        results = [
-            SearchResult(
-                title=item.get("title", ""),
-                url=item.get("url", ""),
-                snippet=item.get("content", ""),
-                image_url=item.get("img_src")
-            )
-            for item in response.get("results", [])
-        ]
+        if categories == "general":
+            results = [
+                SearchResultNews(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    summary=item.get("content", ""),
+                )
+                for item in response.get("results", [])
+            ]
+        elif categories == "images":
+            results = [
+                SearchResultImage(
+                    image_src=item.get("img_src", "")
+                )
+                for item in response.get("results", [])
+            ]
         return results
     except Exception as e:
-        logger.error(f"SearXNG search failed: {e}")
+        logger.error(f"SearXNG搜索失败: {e}")
         return []
 
 
@@ -115,17 +188,40 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
         An ImageAnalysis object or None if analysis fails.
     """
     if not config.VISION_URL:
-        logger.error("VISION_API_URL is not configured. Skipping image analysis.")
+        logger.error("VISION_API_URL未配置。跳过图像分析。")
         return None
     if not config.QWEN_TOKEN:
-        logger.warning("QWEN_PLUS_TOKEN not set. Skipping image analysis.")
+        logger.warning("QWEN_PLUS_TOKEN未设置。跳过图像分析。")
         return None
         
-    logger.info(f"Analyzing image: {image_url}")
+    logger.info(f"正在分析图像: {image_url}")
     headers = {"Authorization": f"Bearer {config.QWEN_TOKEN}"}
     try:
         response = _make_api_request(
-            config.VISION_URL, method="POST", headers=headers, json={"image_url": image_url}
+            config.VISION_URL, 
+            method="POST", 
+            headers=headers, 
+            json={
+                "model": "Qwen2.5-VL-7B-Instruct",
+                "stream": False,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": image_url
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": "请分析这张图片并提供详细描述"
+                            }
+                        ]
+                    }
+                ]
+            }
         )
         return ImageAnalysis(original_url=image_url, **response)
     except Exception as e:
@@ -176,7 +272,7 @@ def perform_table_reasoning(data_snippets: List[str]) -> List[TableData]:
 
 def write_markdown_report(
     topic: str,
-    search_results: List[SearchResult],
+    search_results: List[SearchResultNews|SearchResultImage],
     image_analyses: List[ImageAnalysis],
     tables: List[TableData],
 ) -> str:
@@ -217,4 +313,6 @@ def write_markdown_report(
             
     report_parts.append("\n---\n*This report was auto-generated by a multi-agent system.*")
     
-    return "\n".join(report_parts) 
+    return "\n".join(report_parts)
+
+
