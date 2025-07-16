@@ -1,5 +1,8 @@
 # 智能多体协作研究报告生成系统
-
+https://blog.csdn.net/puhaiyang/article/details/145284677
+https://zhuanlan.zhihu.com/p/1909636778828207960
+https://microsoft.github.io/autogen/0.4.2/reference/python/autogen_agentchat.teams.html#autogen_agentchat.teams.BaseGroupChat
+https://www.dataleadsfuture.com/build-autogen-agents-with-qwen3-structured-output-thinking-mode/
 > 基于 Autogen 多智能体框架与 Gradio 前端，一键生成带图片、数据推理与引用校验的 Markdown 研究报告。
 
 ---
