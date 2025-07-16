@@ -7,15 +7,12 @@ import requests
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from .agents import SearchResult, ImageAnalysis, TableData
+from .models import SearchResult, ImageAnalysis, TableData
+from . import config
 
 logger = logging.getLogger(__name__)
 
-# --- API Configuration ---
-BOCHAI_API_URL = "https://www.bochai.com/api/v1/search"  # Placeholder
-SEARXNG_API_URL = "https://searxng.instance/api/search"  # Placeholder
-VISION_API_URL = "https://vision.api/v1/analyze"  # Placeholder
-QWEN_PLUS_TOKEN = os.environ.get("QWEN_PLUS_TOKEN")
+# --- API Configuration is now managed in core/config.py ---
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
@@ -57,10 +54,13 @@ def search_bochai(topic: str, count: int = 5) -> List[SearchResult]:
     Returns:
         A list of SearchResult objects.
     """
+    if not config.BOCHAI_URL:
+        logger.error("BOCHAI_API_URL is not configured.")
+        return []
     logger.info(f"Searching Bochai for: {topic}")
     try:
         response = _make_api_request(
-            BOCHAI_API_URL, params={"q": topic, "count": count}
+            config.BOCHAI_URL, params={"q": topic, "count": count}
         )
         # Assuming the API returns a list of result objects
         return [SearchResult(**item) for item in response.get("results", [])]
@@ -80,10 +80,13 @@ def search_searxng(topic: str, count: int = 5) -> List[SearchResult]:
     Returns:
         A list of SearchResult objects.
     """
+    if not config.SEARXNG_URL:
+        logger.error("SEARXNG_API_URL is not configured.")
+        return []
     logger.info(f"Searching SearXNG for: {topic}")
     try:
         response = _make_api_request(
-            SEARXNG_API_URL, params={"q": topic, "format": "json", "count": count}
+            config.SEARXNG_URL, params={"q": topic, "format": "json", "count": count}
         )
         # Adapt the response structure to SearchResult model
         results = [
@@ -111,15 +114,18 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
     Returns:
         An ImageAnalysis object or None if analysis fails.
     """
-    if not QWEN_PLUS_TOKEN:
+    if not config.VISION_URL:
+        logger.error("VISION_API_URL is not configured. Skipping image analysis.")
+        return None
+    if not config.QWEN_TOKEN:
         logger.warning("QWEN_PLUS_TOKEN not set. Skipping image analysis.")
         return None
         
     logger.info(f"Analyzing image: {image_url}")
-    headers = {"Authorization": f"Bearer {QWEN_PLUS_TOKEN}"}
+    headers = {"Authorization": f"Bearer {config.QWEN_TOKEN}"}
     try:
         response = _make_api_request(
-            VISION_API_URL, method="POST", headers=headers, json={"image_url": image_url}
+            config.VISION_URL, method="POST", headers=headers, json={"image_url": image_url}
         )
         return ImageAnalysis(original_url=image_url, **response)
     except Exception as e:
@@ -157,7 +163,7 @@ def perform_table_reasoning(data_snippets: List[str]) -> List[TableData]:
     })
     df["YoY Growth (%)"] = df["Investment (Billion USD)"].pct_change() * 100
     
-    table_md = df.to_markdown(index=False)
+    table_md = df.to_markdown(index=False) or ""
     
     return [
         TableData(

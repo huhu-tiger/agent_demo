@@ -12,8 +12,7 @@ from autogen import (
     GroupChatManager,
     config_list_from_json,
 )
-from pydantic import BaseModel, Field
-
+from .models import SearchResult, ImageAnalysis, TableData
 from .utils import (
     search_bochai,
     search_searxng,
@@ -28,29 +27,6 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(agent)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-# --- Data Models ---
-class SearchResult(BaseModel):
-    """Represents a single search result item."""
-    title: str = Field(description="Title of the news article or report.")
-    url: str = Field(description="Direct URL to the content.")
-    snippet: str = Field(description="A brief summary or snippet of the content.")
-    image_url: Optional[str] = Field(None, description="URL of a relevant image.")
-
-
-class ImageAnalysis(BaseModel):
-    """Represents the analysis of an image."""
-    original_url: str = Field(description="The original URL of the image.")
-    caption: str = Field(description="A generated caption describing the image.")
-    tags: List[str] = Field(default_factory=list, description="Relevant tags for the image.")
-
-
-class TableData(BaseModel):
-    """Represents a data table, likely for financial or statistical data."""
-    title: str = Field(description="Title of the table.")
-    markdown_content: str = Field(description="The table formatted in Markdown.")
-    reasoning_summary: str = Field(description="Summary of how the table data was inferred or calculated.")
 
 
 # --- Agent Definitions ---
