@@ -1,0 +1,10 @@
+autogen>=0.4.0,<0.5.0
+gradio>=4.14.0
+requests==2.31.0
+httpx==0.26.0
+pandas==2.2.0
+pydantic==2.5.0
+websockets==12.0
+beautifulsoup4==4.12.0
+openai==1.14.0 
+tenacity 

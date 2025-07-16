@@ -1,0 +1,108 @@
+# deploy/k8s.yaml
+# Basic Kubernetes manifest for deploying the multi-agent report generator.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: report-agent-secret
+type: Opaque
+data:
+  # The QWEN_PLUS_TOKEN should be base64 encoded.
+  # Example: echo -n 'sk-d7488c901fc84fd997a4b28a206a355e' | base64
+  QWEN_PLUS_TOKEN: c2stZDc0ODhjOTAxZmM4NGZkOTk3YTRiMjhhMjA2YTM1NWU=
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-agent-config
+data:
+  # This should contain the contents of your OAI_CONFIG_LIST.json
+  # For now, it's a placeholder.
+  OAI_CONFIG_LIST.json: |
+    [
+      {
+        "model": "qwen-plus",
+        "api_key": "dummy_key_for_qwen",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      },
+      {
+        "model": "deepseek-v3",
+        "api_key": "dummy_key_for_deepseek",
+        "base_url": "https://api.deepseek.com/v1"
+      },
+      {
+        "model": "deepseek-r1",
+        "api_key": "dummy_key_for_deepseek_reasoning",
+        "base_url": "https://api.deepseek.com/v1"
+      }
+    ]
+  LOG_LEVEL: "INFO"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-agent-deployment
+  labels:
+    app: report-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-agent
+  template:
+    metadata:
+      labels:
+        app: report-agent
+    spec:
+      containers:
+        - name: report-agent-app
+          # Replace with your actual image repository and tag
+          image: your-repo/report-agent:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            # The FastAPI server runs on port 8000
+            - containerPort: 8000
+            # The Gradio UI runs on port 7860
+            - containerPort: 7860
+          env:
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: report-agent-config
+                  key: LOG_LEVEL
+            - name: QWEN_PLUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: report-agent-secret
+                  key: QWEN_PLUS_TOKEN
+          volumeMounts:
+            - name: config-volume
+              mountPath: /app/OAI_CONFIG_LIST.json
+              subPath: OAI_CONFIG_LIST.json
+      volumes:
+        - name: config-volume
+          configMap:
+            name: report-agent-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-agent-service
+spec:
+  selector:
+    app: report-agent
+  ports:
+    - name: api
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
+    - name: ui
+      protocol: TCP
+      port: 7860
+      targetPort: 7860
+  # Use LoadBalancer for cloud environments to get an external IP.
+  # Use NodePort or Ingress for on-prem or other setups.
+  type: LoadBalancer
