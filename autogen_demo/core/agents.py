@@ -111,7 +111,7 @@ class OrchestratorAgent:
 """,
 
             # model_client=self.config_list["qwen-plus"]
-            model_client=self.config_list["Qwen3-235B"]
+            model_client=self.config_list["deepseek-r1"]
         )
 
 
