@@ -4,15 +4,15 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from urllib.parse import urljoin
+from typing import Any, Dict, List, Optional, Sequence
 import requests
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
-from . import config
 from .logging_config import get_logger
-
+from . import config
 # 获取日志记录器
 logger = get_logger(__name__, "Utils")
 logger.info(f"Utils logger initialized")
@@ -83,36 +83,46 @@ def extract_bocah_data(response)->tuple[List[SearchResultNews], List[SearchResul
             ]
     
     return news_data_result, image_data_result 
-def search_bochai(topic: str, count: int = 5) -> List[SearchResultNews|SearchResultImage]:
+def search_bochai(chapter: str, count: int = 20) -> List[SearchResultNews|SearchResultImage]:
     """
     Performs a search using the Bochai AI Search API.
 
     Args:
-        topic: The search query topic.
+        chapter: The search query chapter.
         count: The number of results to return.
 
     Returns:
         A list of SearchResult objects.
     """
-    if not config.BOCHAI_URL:
+    if not config.BOCHAI_API_URL:
         logger.error("BOCHAI_API_URL未配置。")
         return []
-    logger.info(f"正在使用Bochai搜索: {topic}")
-    logger.info(f"Bochai API URL: {config.BOCHAI_URL}")
+    logger.info(f"正在使用Bochai搜索: {chapter}")
+    logger.info(f"Bochai API URL: {config.BOCHAI_API_URL}")
 
     try:
         request_body = {
-            "query": topic,
+            "query": chapter,
             "count": count,
             "freshness": "noLimit",
             "summary": True
         }
+        # 构造请求头，加入 Bearer 身份认证
+        headers: Dict[str, str] | None = None
+        if config.BOCHAI_API_KEY:
+            headers = {"Authorization": f"Bearer {config.BOCHAI_API_KEY}"}
+
+        # 发送请求至 Bochai API
         response = _make_api_request(
-            config.BOCHAI_URL, 
-            method="POST", 
-            json=request_body
+            config.BOCHAI_API_URL,
+            method="POST",
+            headers=headers,
+            json=request_body,
         )
+
         logger.info(f"Bochai Body: {request_body}")
+
+        # 解析返回结果
         news_data, image_data = extract_bocah_data(response)
         return [*news_data, *image_data]
     except Exception as e:
@@ -120,13 +130,13 @@ def search_bochai(topic: str, count: int = 5) -> List[SearchResultNews|SearchRes
         return []
 
 
-def search_searxng(topic: str, page: int = 1, language: str = "zh-CN", categories: str = "general") -> List[SearchResultNews|SearchResultImage]:
+def search_searxng(chapter: str, page: int = 1, language: str = "zh-CN", categories: str = "general") -> List[SearchResultNews|SearchResultImage]:
     """
     Performs a search using the SearXNG Search API.
 
     Args:
-        topic: The search query topic.
-        page: The page number for pagination.
+        chapter: The search query chapter.
+        page: The page number for pagination,
         language: The language for search results, defaults to zh-CN.
         categories: The search category, either "general" or "images".
 
@@ -137,20 +147,20 @@ def search_searxng(topic: str, page: int = 1, language: str = "zh-CN", categorie
         logger.warning(f"无效的类别 '{categories}'，默认使用 'general'")
         categories = "general"
 
-    if not config.SEARXNG_URL:
+    if not config.SEARXNG_API_URL:
         logger.error("SEARXNG_API_URL未配置。")
         return []
-    logger.info(f"正在使用SearXNG搜索: {topic}")
+    logger.info(f"正在使用SearXNG搜索: {chapter}")
     try:
         request_body = {
-            "q": topic,
+            "q": chapter,
             "format": "json",
             "pageno": page,
             "language": language,
             "categories": categories
         }
         response = _make_api_request(
-        config.SEARXNG_URL, 
+        config.SEARXNG_API_URL, 
         params=request_body
         )
         logger.info(f"SearXNG Body: {request_body}")
@@ -171,7 +181,7 @@ def search_searxng(topic: str, page: int = 1, language: str = "zh-CN", categorie
                 )
                 for item in response.get("results", [])
             ]
-        return results
+        return list(results)
     except Exception as e:
         logger.error(f"SearXNG搜索失败: {e}")
         return []
@@ -187,20 +197,19 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
     Returns:
         An ImageAnalysis object or None if analysis fails.
     """
-    if not config.VISION_URL:
-        logger.error("VISION_API_URL未配置。跳过图像分析。")
-        return None
-    if not config.QWEN_TOKEN:
-        logger.warning("QWEN_PLUS_TOKEN未设置。跳过图像分析。")
+
+    model_config = config.model_config_manager.get_model_config("qwen-vl")
+    if not model_config:
+        logger.warning("QWEN_VL_API_KEY未设置。跳过图像分析。")
         return None
         
     logger.info(f"正在分析图像: {image_url}")
-    headers = {"Authorization": f"Bearer {config.QWEN_TOKEN}"}
+    # headers = {"Authorization": f"Bearer {model_config.api_key}"}
     try:
         response = _make_api_request(
-            config.VISION_URL, 
+            urljoin(model_config.base_url, "/chat/completions"),  # type: ignore[attr-defined]
             method="POST", 
-            headers=headers, 
+            # headers=headers, 
             json={
                 "model": "Qwen2.5-VL-7B-Instruct",
                 "stream": False,
@@ -216,20 +225,19 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
                             },
                             {
                                 "type": "text",
-                                "text": "请分析这张图片并提供详细描述"
+                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.有非文字，则简述图片的内容 2. 图片中没有图像只有文字，则返回`无效图片`"
                             }
                         ]
                     }
                 ]
             }
         )
-        return ImageAnalysis(original_url=image_url, **response)
+        return ImageAnalysis(image_src=image_url, **response)
     except Exception as e:
         logger.error(f"Image analysis for {image_url} failed: {e}")
         return ImageAnalysis(
-            original_url=image_url,
-            caption=f"Image at {image_url} (analysis failed)",
-            tags=["error"],
+            image_src=image_url,
+            description="no_image",
         )
 
 
@@ -270,49 +278,25 @@ def perform_table_reasoning(data_snippets: List[str]) -> List[TableData]:
     ]
 
 
-def write_markdown_report(
-    topic: str,
-    search_results: List[SearchResultNews|SearchResultImage],
-    image_analyses: List[ImageAnalysis],
-    tables: List[TableData],
-) -> str:
-    """
-    Composes the final Markdown report from all gathered assets.
+def save_report_to_file(report_markdown: str, filename: str = "report.md") -> str:
+    """将生成的Markdown报告保存到本地文件。
 
     Args:
-        topic: The central topic of the report.
-        search_results: A list of search results.
-        image_analyses: A list of image analysis results.
-        tables: A list of generated tables.
+        report_markdown: Markdown格式的报告内容。
+        filename: 保存的文件名，默认为 report.md。
 
     Returns:
-        A string containing the final Markdown report.
+        保存成功后返回确认消息。
     """
-    logger.info("Writing final Markdown report...")
-    report_parts = [f"# Research Report: {topic}\n"]
-
-    report_parts.append("## 1. Key Findings from Web Search\n")
-    for i, res in enumerate(search_results, 1):
-        report_parts.append(f"### {res.title}")
-        report_parts.append(f"> {res.snippet}")
-        report_parts.append(f"\nSource: [{res.url}]({res.url})\n")
-
-    if image_analyses:
-        report_parts.append("## 2. Image Analysis\n")
-        for img in image_analyses:
-            report_parts.append(f"![{img.caption}]({img.original_url})")
-            report_parts.append(f"*Fig. {img.tags[0] if img.tags else 'Analyzed Image'}: {img.caption}*")
-            report_parts.append("\n")
-
-    if tables:
-        report_parts.append("## 3. Data and Tables\n")
-        for table in tables:
-            report_parts.append(f"### {table.title}")
-            report_parts.append(table.markdown_content)
-            report_parts.append(f"\n*{table.reasoning_summary}*\n")
-            
-    report_parts.append("\n---\n*This report was auto-generated by a multi-agent system.*")
-    
-    return "\n".join(report_parts)
+    logger.info(f"保存报告到文件: {filename}")
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(report_markdown)
+        logger.info("报告保存成功")
+        # return f"Report saved to {filename}"
+        return f"报告保存完成 to {filename}"
+    except Exception as e:
+        logger.error(f"保存报告文件失败: {e}")
+        return f"Failed to save report: {e}"
 
 

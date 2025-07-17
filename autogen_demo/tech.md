@@ -16,7 +16,7 @@
 | **SearchAgent-SX** | 调用 **SearXNG搜索API** 检索新闻和信息；模型：`deepseek-v3`。 |
 | **VisionAgent** | 解析图片URL并生成描述；调用 **图片解析接口**；模型：`deepseek-r1`（支持 reasoning 与跨模态融合）。 |
 | **TableReasonerAgent** | 对结构化数据进行推理补全，生成表格；模型：`deepseek-r1`（支持 reasoning）。 |
-| **ReportWriterAgent** | 依据整理好的信息资产撰写最终Markdown报告；模型：`deepseek-r1`（更佳的推理与长上下文能力）。 |
+| **ReportWriterAgent** | 负责章节规划、逐章节内容撰写和最终报告合并；模型：`deepseek-r1`（更佳的推理与长上下文能力）。 |
 | **配置模块 (config.py)** | 使用 `dotenv` 统一加载环境变量，管理所有API URL和Tokens。 |
 | **Logger & Monitor** | 统一封装 Python `logging`；日志流向：终端、文件、前端。 |
 
@@ -65,24 +65,47 @@ sequenceDiagram
     participant U as 用户
     participant G as Gradio UI
     participant O as OrchestratorAgent
+    participant R as ReportWriterAgent
     participant SB as SearchAgent-BC
     participant SS as SearchAgent-SX
     participant V as VisionAgent
     participant T as TableReasonerAgent
-    participant R as ReportWriterAgent
+    
     U->>G: 输入研究主题
     G->>O: run(topic)
-    O->>SB: search_bochai(topic)
-    O->>SS: search_searxng(topic)
-    SB-->>O: 返回新闻列表(含图片URL)
-    SS-->>O: 返回新闻列表(含图片URL)
-    O->>V: parse_image_url(image_url)
-    V-->>O: 返回图片描述
-    O->>T: perform_table_reasoning(data_snippets)
-    T-->>O: 返回Markdown表格
-    O->>R: write_markdown_report(all_assets)
-    R-->>O: 返回最终报告.md
+    
+    %% 章节规划阶段
+    O->>R: 生成三个章节名称
+    R-->>O: 返回章节名称列表
+    
+    %% 对每个章节进行处理
+    loop 对每个章节
+        %% 搜索阶段
+        O->>SB: search_bochai(章节名称)
+        O->>SS: search_searxng(章节名称)
+        SB-->>O: 返回新闻列表
+        SS-->>O: 返回新闻和图片URL列表
+        
+        %% 图片处理阶段
+        loop 对每张图片
+            O->>V: parse_image_url(image_url)
+            V-->>O: 返回图片描述
+        end
+        
+        %% 表格处理阶段
+        O->>T: perform_table_reasoning(新闻数据)
+        T-->>O: 返回Markdown表格
+        
+        %% 章节内容生成
+        O->>R: 生成章节内容(新闻、图片描述、表格)
+        R-->>O: 返回章节内容(含引用链接)
+    end
+    
+    %% 报告合并阶段
+    O->>R: 合并所有章节生成最终报告
+    R-->>O: 返回完整Markdown报告
     O-->>G: 显示报告内容
+    
     Note over G: 右侧窗口实时打印日志
 ```
 
@@ -96,7 +119,7 @@ sequenceDiagram
 | SearchAgent-SX | SearXNG 新闻检索 | deepseek-v3 | `SearXNG搜索API` | DEBUG |
 | VisionAgent | 图片URL解析与多模态理解 | deepseek-r1 | `图片解析接口` | INFO |
 | TableReasonerAgent | 表格推理、同比/环比计算 | deepseek-r1 | 内部推理 | INFO |
-| ReportWriterAgent | Markdown 报告撰写 | deepseek-r1 | 内部推理 | INFO |
+| ReportWriterAgent | 章节规划、逐章节撰写、最终报告合并 | deepseek-r1 | 内部推理 | INFO |
 
 > **配置管理**：所有API URL及 `qwen-plus` 的Bearer Token等敏感信息，均通过 `.env` 文件进行管理，由 `config.py` 统一加载，避免硬编码。
 
@@ -117,17 +140,40 @@ manager = GroupChatManager(
     groupchat=groupchat,
     llm_config=qwen_plus_config,
     system_message=(
-        "You are the orchestrator. Your job is to manage a team of specialists to produce a research report. "
-        "1. **Search**: First, instruct both `SearchAgent_BC` and `SearchAgent_SX` to search for the topic. "
-        "2. **Analyze**: Once you have the search results, send all image URLs to `VisionAgent` for analysis, and data snippets to `TableReasonerAgent`. "
-        "3. **Synthesize**: After receiving the analyses, gather all information and pass it to the `ReportWriterAgent`. "
-        "4. **Finalize**: Instruct `ReportWriterAgent` to write the final report and terminate."
+        "你是协调者。你的任务是管理专家团队生成研究报告。按照以下步骤执行：\n"
+        "1. **章节规划**：首先，指导`ReportWriterAgent`根据研究主题生成三个相关章节的名称。\n"
+        "2. **信息检索**：对每个章节，指导`SearchAgent_BC`和`SearchAgent_SX`分别检索相关新闻和图片。\n"
+        "3. **图片分析**：将搜索到的图片URL发送给`VisionAgent`进行分析和描述生成。\n"
+        "4. **数据整理**：将搜索到的新闻数据发送给`TableReasonerAgent`，整理成表格形式。\n"
+        "5. **章节撰写**：指导`ReportWriterAgent`为每个章节撰写内容，确保包含图片、表格和引用链接。\n"
+        "6. **报告合并**：最后，指导`ReportWriterAgent`合并所有章节内容，生成最终报告并结束。"
     )
 )
 
 user_proxy.initiate_chat(manager, message=f"Generate a report on: {topic}")
 ```
 > 说明：通过 `GroupChatManager` 和精心设计的 `system_message` 来引导协作流程，实现任务的自动分解与执行。
+
+#### 4.1.1 报告生成详细步骤
+
+1. **章节规划**：
+   - OrchestratorAgent 根据用户提供的报告主题，指导 ReportWriterAgent 生成三个相关的章节名称
+   - 章节名称需要相互关联、层次分明、覆盖主题的关键方面
+
+2. **逐章节生成**：
+   对每个章节，系统按以下逻辑执行：
+   - **搜索阶段**：SearchAgent_BC 和 SearchAgent_SX 根据章节名称搜索相关新闻和图片
+   - **图片处理**：如果搜索结果包含图片，VisionAgent 使用VL模型生成图片描述
+   - **数据整理**：TableReasonerAgent 从新闻数据中提取关键数据点，整理成结构化表格
+   - **内容撰写**：ReportWriterAgent 整合所有信息，为该章节生成完整内容，包含文本、图片、表格和引用链接
+
+3. **报告合并**：
+   - ReportWriterAgent 将三个章节的内容合并成完整报告
+   - 确保保留所有图片、表格和引用链接
+   - 添加报告标题、导言和结论
+   - 格式化为标准 Markdown 文档
+
+这种逐章节生成的方法有助于提高报告内容的质量和相关性，同时使每个章节可以独立且深入地探讨特定方面。
 
 ### 4.2 日志体系
 1. **统一封装**：基于 Python `logging`，定义一个自定义的 Handler (例如 `QueueHandler`)，将日志记录推送到队列中，供Gradio前端消费和实时渲染。

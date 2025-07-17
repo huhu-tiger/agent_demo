@@ -31,7 +31,7 @@ class ImageAnalysis(BaseModel):
     Represents the analysis of an image.
     表示对图像的分析结果。
     """
-    original_url: str = Field(description="图像的原始URL")
+    image_src: str = Field(description="图像的原始URL")
     description: str = Field(description="描述图像的文本")
     # tags: List[str] = Field(default_factory=list, description="Relevant tags for the image. 图像的相关标签。")
 
