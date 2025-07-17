@@ -66,51 +66,22 @@ class OrchestratorAgent:
             logger.info(f"模型名称: {model_name}, 模型客户端: {model_client._raw_config}")
 
 
-        # 构建初始任务提示，融入协调者系统提示的内容
-        task_prompt = f"""需要引导团队完成关于主题的研究报告生成，请按照以下三个阶段进行：
 
-# 1. 章节规划阶段：
-   - 首先，指导ChapterPlannerAgent生成至少三个主题相关的章节名称
-   - 确保章节名称相互关联、层次分明，全面覆盖主题的关键方面
-
-# 2. 根据第1步生成的多个章节名称，每个章节名称分别生成独立的章节内容
-  ## 单个章节内容生成步骤：
-   - 执行search_agent_bc和search_agent_sx搜索,传入章节名称
-   - 将搜索到的图片URL发送给VisionAgent进行分析，分析图片的描述，并返回图片的描述
-   - 将搜索到的数据发送给TableReasonerAgent进行表格整理
-   - 使用ChapterWriterAgent生成章节内容，段落后面要加入引用链接，引用链接和图片链接要使用markdown格式，引用链接要使用[链接文本](链接地址)格式，为该章节撰写完整内容
-   - 章节内容要包含图片、表格、引用链接
-
-#3. 报告合并阶段：
-   - 指导ReportWriterAgent将第2步生成的所有章节内容合理的组成最终报告
-   - 确保最终报告包含章节中标题、导言、结论，以及所有图片、表格和引用链接
-
-# 4. 报告保存阶段：
-   - 指导ReportSaverAgent调用 save_report_to_file 将最终报告保存为 report.md
-   - 保存成功后，ReportSaverAgent 回复 'FILE_SAVED'
-
-请开始章节规划阶段，让ChapterPlannerAgent生成三个章节名称。"""
         self.planning_agent = AssistantAgent(
             name="PlanningAgent",  # 代理名称
-            system_message=f"""你是一个任务规划智能体。你的工作是将复杂的任务分解为更小的、可管理的子任务。
-你的团队成员有3个，分别是：
-    SearchAgent_BC: 博查搜索智能体
-    SearchAgent_SX: SearXNG搜索智能体
-    VisionAgent: 视觉智能体,理解图片，添加图片描述
-    TableReasonerAgent: 表格推理智能体
-    ChapterWriterAgent: 章节内容撰写智能体,将网络新闻与图片进行整理，生成章节内容
-    ReportSaverAgent: 报告保存智能体,将最终报告保存为 report.md
-{task_prompt}       
-
-注意:
-1. 你只计划和委派任务，而不自己执行它们
-2. 分配任务时，请使用此格式:
-   1. <agent> : <task>
-3. 当所有智能体把任务完成后，再总结结果以"TERMINATE"结束。   
+            system_message=f"""你是一个任务规划智能体,你的工作是将复杂的任务分解为更小的、可管理的子任务。
+                                       
+你只计划和委派任务，而不自己执行它们
+                                
+分配任务时，请使用此格式:
+1. <agent> : <task>
+                                        
+当所有智能体把任务完成后，再总结结果以"TERMINATE"结束。                
 
 """,
 
             # model_client=self.config_list["qwen-plus"]
+            # model_client=self.config_list["deepseek-r1"]
             model_client=self.config_list["Qwen3-235B"]
         )
 
@@ -179,32 +150,52 @@ class OrchestratorAgent:
         )
         
         # 报告撰写智能体：撰写最终的Markdown报告
-        self.chapter_writer_agent = AssistantAgent(
-            name="ChapterWriterAgent",  # 智能体名称
-            system_message="""你是一名专业的章节内容撰写者，负责将网络新闻与图片进行整理，生成章节内容。
-你的任务是：
-1. 根据网络新闻与图片，生成章节内容
-2. 确保内容与章节主题高度相关
-3. 整合图片、表格并添加引用链接
-4. 使用专业的语言和逻辑结构
+        self.chapter_planner_agent = AssistantAgent(
+            name="ChapterPlannerAgent",  # 智能体名称
+            system_message="""你是一名专业的章节内容撰写者，负责收集网络新闻与图片进行整理，生成章节内容。
+  ## 章节内容生成步骤：
+   1. 根据章节名称，使用[SearchAgent_BC]和[SearchAgent_SX]搜索章节名称相关新闻和图片
+   2. 将搜索到的图片URL发送给[VisionAgent]进行分析，分析图片的描述
+   3. 将搜索到的新闻发送给[TableReasonerAgent]进行表格整理
+   4. 将前3步的数据，使用[ChapterWriterAgent]整理为完整章节内容，采用markdown格式，段落后面要加入引用链接，引用链接和图片链接要使用markdown格式，引用链接要使用[链接文本](链接地址)格式
 
-请确保你生成的章节内容符合报告主题，并且内容丰富、有价值。""",
+请确保你生成的章节内容符合章节名称，并且内容丰富、有价值。""",
             # model_client=self.config_list["deepseek-r1"]
             model_client=self.config_list["Qwen3-235B"],
             # tools=[save_report_to_file],
             # reflect_on_tool_use=True
         )
 
+        self.chapter_writer_agent = AssistantAgent(
+            name="ChapterWriterAgent",  # 智能体名称
+            system_message="""你是一名专业的章节内容撰写者，负责将网络新闻与图片进行整理，生成章节内容。
+            
+            """,
+            model_client=self.config_list["Qwen3-235B"],
+        )
+
         # 章节规划智能体：生成章节名称
-        self.chapter_planner_agent = AssistantAgent(
-            name="ChapterPlannerAgent",
-            system_message="""你是一名章节规划专家，负责根据用户输入的研究主题生成三个相关的章节名称。
+        self.chapter_name_agent = AssistantAgent(
+            name="ChapterNameAgent",
+            system_message="""你是一名章节名称生成专家，负责根据用户输入的研究主题生成三个相关的章节名称。
             要求：
             1. 章节名称应使用中文，简洁且具有专业度
             2. 三个章节应相互独立又层次分明，覆盖主题的核心方面
             3. 输出时以有序列表形式返回，每行一个章节名称\n4. 输出后发送到其他智能体继续流程，不需要撰写任何章节内容
             """,
             # model_client=self.config_list["deepseek-v3"],
+            model_client=self.config_list["Qwen3-235B"],
+        )
+
+                # 报告保存智能体：将报告写入文件
+        self.report_generator_agent = AssistantAgent(
+            name="ReportGeneratorAgent",
+            system_message="""你是一名报告生成专家，负责将多个章节的内容合并成最终的Markdown报告。
+            你的任务：
+            1. 接收多个章节的内容
+            2. 将多个章节的内容合并成最终的Markdown报告,
+            # model_client=self.config_list["qwen-plus"]
+            """,
             model_client=self.config_list["Qwen3-235B"],
         )
         
@@ -251,21 +242,44 @@ class OrchestratorAgent:
         max_messages_termination = MaxMessageTermination(max_messages=60)
         termination = text_mention_termination | max_messages_termination
         
+
+
+
         groupchat = SelectorGroupChat(
             participants=[
                 self.planning_agent, # 规划智能体
-                self.chapter_planner_agent,  # 章节规划智能体
-                self.chapter_writer_agent, # 章节内容撰写智能体
+                self.chapter_name_agent,  # 章节名称生成智能体
                 self.search_agent_bc, # 博查搜索智能体
                 self.search_agent_sx, # SearXNG搜索智能体
                 self.vision_agent, # 视觉智能体
                 self.table_reasoner_agent, # 表格推理智能体
-  
+                self.chapter_planner_agent, # 章节规划智能体
+                self.chapter_writer_agent, # 章节内容撰写智能体
+
+                self.report_generator_agent, # 报告生成智能体
                 self.report_saver_agent,  # 报告保存智能体
             ],
-            model_client=self.config_list["qwen-plus"],  # 使用qwen-plus模型作为选择器
+            # model_client=self.config_list["qwen-plus"],  # 使用qwen-plus模型作为选择器
+            model_client=self.config_list["Qwen3-235B"],  # 使用qwen-plus模型作为选择器
             termination_condition=termination,
-            
+                    # 构建初始任务提示，融入协调者系统提示的内容
+            selector_prompt = f"""需要引导团队完成关于主题的研究报告生成，请按照以下三个阶段进行：
+# 1. 章节规划阶段：
+   - 首先，指导ChapterNameAgent一次性生成至少三个主题相关的章节名称
+   - 确保章节名称相互关联、层次分明，全面覆盖主题的关键方面
+
+# 2. 章节生成阶段:
+   - 根据章节名称数量，多次调用[ChapterPlannerAgent]分别生成对应章节名称的章节完整内容
+
+#3. 报告合并阶段：
+   - 指导[ReportWriterAgent]将第2步生成的所有章节内容组成最终报告
+   - 确保最终报告包含章节中标题、导言、结论，以及所有图片、表格和引用链接
+
+# 4. 报告保存阶段：
+   - 指导[ReportSaverAgent]将第3步的报告保存为 report.md
+   - 保存成功后，ReportSaverAgent 回复 'FILE_SAVED'
+
+请开始章节名称生成阶段，让ChapterNameAgent生成三个章节名称。"""
         )
 
         # 启动多智能体对话，实现基于章节的报告生成流程
@@ -308,12 +322,13 @@ class OrchestratorAgent:
                         # 仅记录agent与工具调用，不输出工具返回内容
                         agent_names = [
                             self.planning_agent.name,
-                            self.chapter_planner_agent.name,
+                            self.chapter_name_agent.name,
                             self.search_agent_bc.name,
                             self.search_agent_sx.name,
                             self.vision_agent.name,
                             self.table_reasoner_agent.name,
                             self.chapter_writer_agent.name,
+                            self.report_generator_agent.name,
                             self.report_saver_agent.name,
                         ]
                         tool_names = [

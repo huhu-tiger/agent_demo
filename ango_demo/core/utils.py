@@ -4,19 +4,31 @@
 
 import logging
 import os
+import sys
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
 import requests
+from pathlib import Path
 import pandas as pd
+# 确保可以导入config模块
+current_dir = Path(__file__).parent.absolute()
+sys.path.append(str(current_dir))
+
 
 from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
 from .logging_config import get_logger
-from . import config
+
+import config
+
+from agno.agent import Agent
+from agno.tools import tool
+from typing import Any, Callable, Dict
+
+
 # 获取日志记录器
 logger = get_logger(__name__, "Utils")
 logger.info(f"Utils logger initialized")
 # --- API Configuration is now managed in core/config.py ---
-
 
 
 def _make_api_request(
@@ -82,6 +94,27 @@ def extract_bocah_data(response)->tuple[List[SearchResultNews], List[SearchResul
             ]
     
     return news_data_result, image_data_result 
+
+
+
+def logger_hook(function_name: str, function_call: Callable, arguments: Dict[str, Any]):
+    """Hook function that wraps the tool execution"""
+    print(f"About to call {function_name} with arguments: {arguments}")
+    result = function_call(**arguments)
+    print(f"Function call completed with result: {result}")
+    return result
+
+@tool(
+    name="通过博查搜索引擎搜索",                # Custom name for the tool (otherwise the function name is used)
+    # description="通过博查搜索引擎搜索新闻和图片",  # Custom description (otherwise the function docstring is used)
+    show_result=True,                               # Show result after function call
+    stop_after_tool_call=False,                      # Return the result immediately after the tool call and stop the agent
+    tool_hooks=[logger_hook],                       # Hook to run before and after execution
+    requires_confirmation=False,                     # Requires user confirmation before execution
+    cache_results=True,                             # Enable caching of results
+    # cache_dir="/tmp/agno_cache",                    # Custom cache directory
+    # cache_ttl=3600                                  # Cache TTL in seconds (1 hour)
+) 
 def search_bochai(chapter: str, count: int = 20) -> List[SearchResultNews|SearchResultImage]:
     """
     Performs a search using the Bochai AI Search API.

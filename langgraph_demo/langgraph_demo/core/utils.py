@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
 import requests
 import pandas as pd
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
 from .logging_config import get_logger
@@ -18,7 +19,7 @@ logger.info(f"Utils logger initialized")
 # --- API Configuration is now managed in core/config.py ---
 
 
-
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def _make_api_request(
     url: str, method: str = "GET", headers: Optional[Dict[str, str]] = None, **kwargs
 ) -> Dict[str, Any]:
