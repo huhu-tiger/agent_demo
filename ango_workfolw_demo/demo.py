@@ -43,8 +43,7 @@ class CacheWorkflow(Workflow):
         if (cached_content := self.session_state.get(message)):
             logger.info(f"Cache hit for '{message}'")
             # 产出一个 RunResponseContentEvent，模拟流式输出
-            yield 
-            (
+            yield RunResponseContentEvent(
                 run_id=self.run_id,
                 content=cached_content,
             )
