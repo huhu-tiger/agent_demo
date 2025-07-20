@@ -64,8 +64,16 @@ class ReportResponse:
 
 from pydantic import BaseModel, Field
 
+class search_news_result(BaseModel):
+    search_result_news: List[SearchResultNews] = Field(
+        ..., description="Search result news"
+    )
+class search_images_result(BaseModel):
+    search_result_image: List[SearchResultImage] = Field(
+        ..., description="Search result image"
+    )
 
-class TopicSearchResult(BaseModel):
+class ChapterReport(BaseModel):
     # report_markdown: str = Field(
     #     ..., description="Report Content in Markdown format"
     # )

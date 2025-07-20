@@ -19,7 +19,7 @@ from textwrap import dedent
 from dataclasses import asdict
 import sys
 from pathlib import Path
-from core.models import TopicSearchResult, Topic_list
+from core.models import *
 
 # 确保可以导入config模块
 current_dir = Path(__file__).parent.absolute()
@@ -109,10 +109,10 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
     )
 
     # Search Agent: Handles intelligent web searching and source gathering
-    searcher: Agent = Agent(
-        stream=True,
+    searcher_news: Agent = Agent(
+        stream=False,
         # save_response_to_file="1.md",
-        response_model=TopicSearchResult,
+        # response_model=search_news_result,
         # 配置DeepSeek模型，使用配置文件中的模型参数
         # model=DeepSeek(
         #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
@@ -122,7 +122,7 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
         # ),
         description=dedent(
             """\
-生成报告的agent
+收集网络新闻的agent
 """
         ),
         model=OpenAIChat(
@@ -153,24 +153,81 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
         # 配置代理的工具
         tools=[
             # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
-            search_web_images,
+            # search_web_images,
             search_web_news,
         ],
         system_message_role="system",
         create_default_system_message=False,
         system_message=dedent(
             """
-You are Research-X, an elite research assistant specializing in discovering
-high-quality sources for compelling blog content. Your expertise includes:
-# Steps are as follows:
-## 1. Use [search_web_news] to search for relevant news, at least 20 items
-## 2. Use [search_web_images] to search for relevant news images, at least 10 items
+你是一名数据收集专家，擅长通过网络搜索新闻
+# 步骤如下：
+## 1. 必须调用 [search_web_news] 工具搜索相关新闻，至少 10 条
                         """
         ),
         # markdown=True,  # 启用Markdown格式输出
         show_tool_calls=True,
     )
 
+    searcher_images: Agent = Agent(
+        stream=False,
+        # save_response_to_file="1.md",
+        # response_model=search_images_result,
+        # 配置DeepSeek模型，使用配置文件中的模型参数
+        # model=DeepSeek(
+        #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
+        #     name=model_config_manager.models["deepseek-r1"].model_name,  # 模型名称
+        #     api_key=model_config_manager.models["deepseek-r1"].api_key,  # API密钥
+        #     base_url=model_config_manager.models["deepseek-r1"].url  # API基础URL
+        # ),
+        description=dedent(
+            """\
+收集网络图片的agent
+"""
+        ),
+        model=OpenAIChat(
+            id=model_config_manager.models[model_name].model_name,  # 模型ID
+            name=model_config_manager.models[model_name].model_name,  # 模型名称
+            api_key=model_config_manager.models[model_name].api_key,  # API密钥
+            base_url=model_config_manager.models[model_name].url,  # API基础URL
+            role_map={
+                "system": "system",
+                "user": "user",
+                "assistant": "assistant",
+                "tool": "tool",
+                "model": "assistant",
+            },
+        ),
+        reasoning_model=DeepSeek(
+            id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+            name=model_config_manager.models[
+                reasoning_model_name
+            ].model_name,  # 模型名称
+            api_key=model_config_manager.models[
+                reasoning_model_name
+            ].api_key,  # API密钥
+            base_url=model_config_manager.models[
+                reasoning_model_name
+            ].url,  # API基础URL
+        ),
+        # 配置代理的工具
+        tools=[
+            # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
+            # search_web_images,
+            search_web_images,
+        ],
+        system_message_role="system",
+        create_default_system_message=False,
+        system_message=dedent(
+            """
+你是一名数据收集专家，擅长通过网络搜索图片
+# 步骤如下：
+## 1. 必须调用 [search_web_images] 工具搜索相关图片，至少 10 条
+                        """
+        ),
+        # markdown=True,  # 启用Markdown格式输出
+        show_tool_calls=True,
+    )
     # Content Scraper: Extracts and processes article content
     # article_scraper: Agent = Agent(
     #     model=OpenAIChat(
@@ -289,22 +346,19 @@ You are Research Report Writing-X, an elite content creator who combines excelle
         ## {Compelling Section 1}
         {Key insights and analysis}
         {Expert quotes and statistics}
-
+       {Properly attributed sources with links}\
         ## {Engaging Section 2}
         {Deeper exploration}
         {Real-world examples}
-
+      {Properly attributed sources with links}\
         ## {Practical Section 3}
         {Actionable insights}
         {Expert recommendations}
-
+      {Properly attributed sources with links}\
         ## Key Takeaways
         - {Shareable insight 1}
         - {Practical takeaway 2}
         - {Notable finding 3}
-
-        ## Sources
-        {Properly attributed sources with links}\
         """),
         markdown=True,
     )
@@ -337,20 +391,28 @@ You are Research Report Writing-X, an elite content creator who combines excelle
         search_image_dict = {}
         news_list = []
         image_list = []
-        for chapter in chapter_list.topic_list:
+        for chapter in chapter_list.topic_list[0:1]:
             # print(chapter)
-            yield from self.searcher.run(chapter, stream=True)
-            search_result_news = self.searcher.run_response.content.search_result_news
-            search_result_image = self.searcher.run_response.content.search_result_image
+            yield from self.searcher_news.run(chapter, stream=True)
+            yield from self.searcher_images.run(chapter, stream=True)
+
+            search_result_news = self.searcher_news.run_response.content
+            search_result_image = self.searcher_images.run_response.content
+
             news_list.extend(search_result_news)
             image_list.extend(search_result_image)
+
+        logger.info(f"news_list:{news_list}")
+        logger.info(f"image_list:{image_list}")
+        logger.info(dir(news_list[0]))
+        logger.info(type(news_list[0]))
 
         # 去重url
         for news in news_list:
             search_news_dict.setdefault(news.url,news)
         for image in image_list:
             search_image_dict.setdefault(image.image_src,image)
-        
+ 
         news_list = []
         image_list = []
         for news in search_news_dict.values():
@@ -358,8 +420,8 @@ You are Research Report Writing-X, an elite content creator who combines excelle
         for image in search_image_dict.values():
             image_list.append(asdict(image))
 
-        # logger.info(f"news_list:{news_list}")
-        # logger.info(f"image_list:{image_list}")
+        logger.info(f"news_list:{news_list}")
+        logger.info(f"image_list:{image_list}")
 
         # # Scrape the search results
         # scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(
