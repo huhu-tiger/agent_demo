@@ -2,8 +2,6 @@
 多智能体报告生成系统的工具函数。
 """
 
-import logging
-import os
 import sys
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
@@ -16,7 +14,7 @@ sys.path.append(str(current_dir))
 
 
 from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
-from .logging_config import get_logger
+from .logging_config import get_logger,logger
 
 import config
 
@@ -26,7 +24,7 @@ from typing import Any, Callable, Dict
 
 
 # 获取日志记录器
-logger = get_logger(__name__, "Utils")
+# logger = get_logger(__name__, "Utils")
 logger.info(f"Utils logger initialized")
 # --- API Configuration is now managed in core/config.py ---
 
@@ -322,7 +320,7 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
                             },
                             {
                                 "type": "text",
-                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.有非文字，则简述图片的内容 2. 图片中没有图像只有文字，则返回`无效图片`"
+                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.图像中有非文字，则简述图片的内容 2. 图片中没有图像只有文字，则返回`无效图片`"
                             }
                         ]
                     }

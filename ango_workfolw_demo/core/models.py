@@ -65,22 +65,28 @@ class ReportResponse:
 from pydantic import BaseModel, Field
 
 
-class ChapterReport(BaseModel):
-    report_markdown: str = Field(
-        ..., description="Report Content in Markdown format"
-    )
+class TopicSearchResult(BaseModel):
+    # report_markdown: str = Field(
+    #     ..., description="Report Content in Markdown format"
+    # )
     search_result_image: List[SearchResultImage] = Field(
         ..., description="Search result image"
     )
     search_result_news: List[SearchResultNews] = Field(
         ..., description="Search result news"
     )
-    message: str = Field(
-        ..., description="reasoning message"
+    # message: str = Field(
+    #     ..., description="reasoning message"
+    # )
+
+
+class Topic_list(BaseModel):
+    topic_list: List[str] = Field(
+        ..., description="Topic list"
     )
 
 if __name__ == "__main__":
-    test_ChapterReport=ChapterReport(
+    test_ChapterReport=TopicReport(
         report_markdown="# 111",
         search_result_image=[SearchResultImage(image_src="test", description="test")],
         search_result_news=[SearchResultNews(title="test", url="test", summary="test")],

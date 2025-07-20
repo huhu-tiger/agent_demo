@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import logging
 from dataclasses import dataclass
 from typing import Dict
-
+from core.logging_config import get_logger,logger
 @dataclass
 class ModelConfig:
     url: str
@@ -24,7 +24,7 @@ class ModelConfig:
 load_dotenv()
 
 # 设置日志
-logger = logging.getLogger(__name__)
+
 
 
 
