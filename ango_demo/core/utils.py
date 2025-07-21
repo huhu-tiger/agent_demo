@@ -129,7 +129,7 @@ def search_web_images(chapter: str, images_num: int=10) -> List[SearchResultImag
         images_num:搜索的图片,不少于20条
 
     Returns:
-        新闻和图片的列表
+        新闻和图片的列表 (List[SearchResultImage])
     """
     # bochai_result = []
     # bochai_result = search_bochai(chapter, num)

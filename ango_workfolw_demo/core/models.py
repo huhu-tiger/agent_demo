@@ -6,20 +6,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 
 
-@dataclass
-class SearchResultNews:
-    """新闻搜索结果模型"""
-    title: str
-    url: str
-    summary: str
 
 
-@dataclass
-class SearchResultImage:
-    """图片搜索结果模型"""
-    image_src: str
-    description: str = ""
-    title: str = ""
 
 
 @dataclass
@@ -28,14 +16,14 @@ class ImageAnalysis:
     image_src: str
     description: str = ""
     
-    @property
-    def content(self) -> str:
-        """获取分析内容"""
-        if self.choices and len(self.choices) > 0:
-            choice = self.choices[0]
-            if 'message' in choice and 'content' in choice['message']:
-                return choice['message']['content']
-        return self.description or "无法解析图片内容"
+    # @property
+    # def content(self) -> str:
+    #     """获取分析内容"""
+    #     if self.choices and len(self.choices) > 0:
+    #         choice = self.choices[0]
+    #         if 'message' in choice and 'content' in choice['message']:
+    #             return choice['message']['content']
+    #     return self.description or "无法解析图片内容"
 
 
 @dataclass
@@ -64,13 +52,37 @@ class ReportResponse:
 
 from pydantic import BaseModel, Field
 
-class search_news_result(BaseModel):
-    search_result_news: List[SearchResultNews] = Field(
-        ..., description="Search result news"
+
+class SearchResultNews(BaseModel):
+    """新闻搜索结果模型"""
+    title: str = Field(..., description="新闻标题")
+    url: str = Field(..., description="新闻URL")
+    summary: Optional[str] = Field(
+        ..., description="Summary of the article if available."
     )
+
+
+class SearchResultImage(BaseModel):
+    """图片搜索结果模型"""
+    image_src: str = Field(..., description="图片URL")
+    description: Optional[str] = Field(
+        default="", description="图片描述"
+    )
+
+class search_news_result(BaseModel):
+    """表示搜索新闻的结果"""
+
+
+    search_result_news: List[SearchResultNews] = Field(
+        default_factory=list, description="Search result news"
+    )
+
+
 class search_images_result(BaseModel):
+    """表示搜索图片的结果"""
+
     search_result_image: List[SearchResultImage] = Field(
-        ..., description="Search result image"
+        default_factory=list, description="Search result image"
     )
 
 class ChapterReport(BaseModel):
@@ -88,8 +100,8 @@ class ChapterReport(BaseModel):
     # )
 
 
-class Topic_list(BaseModel):
-    topic_list: List[str] = Field(
+class Keyword_list(BaseModel):
+    keyword_list: List[str] = Field(
         ..., description="Topic list"
     )
 

@@ -1,3 +1,4 @@
+from tkinter import NO
 from core.logging_config import setup_logging, get_logger,logger # 使用绝对导入
 # 初始化日志
 # logger = setup_logging()
@@ -10,6 +11,7 @@ from agno.models.openai import OpenAIChat
 from agno.storage.sqlite import SqliteStorage
 from agno.utils.pprint import pprint_run_response
 from agno.workflow import RunEvent, RunResponse, Workflow
+from agno.run.response import RunResponse, RunResponseEvent, RunResponseContentEvent, RunEvent
 from pydantic import BaseModel, Field
 from agno.agent import Agent  # 导入Agno框架的Agent类
 from agno.models.deepseek import DeepSeek  # 导入DeepSeek模型
@@ -55,7 +57,7 @@ class ReportPostGenerator(Workflow):
     chapter: Agent = Agent(
         stream=True,
         # save_response_to_file="1.md",
-        response_model=Topic_list,
+        response_model=Keyword_list,
         # 配置DeepSeek模型，使用配置文件中的模型参数
         # model=DeepSeek(
         #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
@@ -98,10 +100,10 @@ class ReportPostGenerator(Workflow):
         create_default_system_message=False,
         system_message=dedent(
             """
-You are an expert in report writing, and are good at writing up to 3 chapter names based on the report topic.
-# Requirement: 
-# Return only chapter names list, no other text
-# Must use Chinese to answer
+You are an expert in web search and are good at writing up to three web search keywords based on the topic.
+# Requirements:
+# Only return the keyword list, no other text
+# Answers must be written in Chinese
                         """
         ),
         # markdown=True,  # 启用Markdown格式输出
@@ -111,8 +113,11 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
     # Search Agent: Handles intelligent web searching and source gathering
     searcher_news: Agent = Agent(
         stream=False,
+        debug_mode=True,
+        tool_call_limit=1,
         # save_response_to_file="1.md",
-        # response_model=search_news_result,
+        response_model=search_news_result,
+        # structured_outputs=True,
         # 配置DeepSeek模型，使用配置文件中的模型参数
         # model=DeepSeek(
         #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
@@ -124,6 +129,19 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
             """\
 收集网络新闻的agent
 """
+        ),
+        parser_model=OpenAIChat(
+            id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+            name=model_config_manager.models[reasoning_model_name].model_name,  # 模型名称
+            api_key=model_config_manager.models[reasoning_model_name].api_key,  # API密钥
+            base_url=model_config_manager.models[reasoning_model_name].url,  # API基础URL
+            role_map={
+                "system": "system",
+                "user": "user",
+                "assistant": "assistant",
+                "tool": "tool",
+                "model": "assistant",
+            },
         ),
         model=OpenAIChat(
             id=model_config_manager.models[model_name].model_name,  # 模型ID
@@ -138,33 +156,35 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
                 "model": "assistant",
             },
         ),
-        reasoning_model=DeepSeek(
-            id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
-            name=model_config_manager.models[
-                reasoning_model_name
-            ].model_name,  # 模型名称
-            api_key=model_config_manager.models[
-                reasoning_model_name
-            ].api_key,  # API密钥
-            base_url=model_config_manager.models[
-                reasoning_model_name
-            ].url,  # API基础URL
-        ),
+        # reasoning_model=DeepSeek(
+        #     id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+        #     name=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].model_name,  # 模型名称
+        #     api_key=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].api_key,  # API密钥
+        #     base_url=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].url,  # API基础URL
+        # ),
         # 配置代理的工具
         tools=[
             # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
             # search_web_images,
             search_web_news,
         ],
+        # tool_choice="auto",  
         system_message_role="system",
-        create_default_system_message=False,
-        system_message=dedent(
-            """
-你是一名数据收集专家，擅长通过网络搜索新闻
-# 步骤如下：
-## 1. 必须调用 [search_web_news] 工具搜索相关新闻，至少 10 条
-                        """
+        create_default_system_message=True,
+        system_message=dedent("""
+你是一名数据收集专家，擅长调用search_web_news工具收集新闻
+"""
         ),
+        instructions=dedent("""\
+    1. 搜索相关新闻，至少 10 条
+
+        """),
         # markdown=True,  # 启用Markdown格式输出
         show_tool_calls=True,
     )
@@ -172,7 +192,7 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
     searcher_images: Agent = Agent(
         stream=False,
         # save_response_to_file="1.md",
-        # response_model=search_images_result,
+        response_model=search_images_result,
         # 配置DeepSeek模型，使用配置文件中的模型参数
         # model=DeepSeek(
         #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
@@ -198,19 +218,33 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
                 "model": "assistant",
             },
         ),
-        reasoning_model=DeepSeek(
+        parser_model=OpenAIChat(
             id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
-            name=model_config_manager.models[
-                reasoning_model_name
-            ].model_name,  # 模型名称
-            api_key=model_config_manager.models[
-                reasoning_model_name
-            ].api_key,  # API密钥
-            base_url=model_config_manager.models[
-                reasoning_model_name
-            ].url,  # API基础URL
+            name=model_config_manager.models[reasoning_model_name].model_name,  # 模型名称
+            api_key=model_config_manager.models[reasoning_model_name].api_key,  # API密钥
+            base_url=model_config_manager.models[reasoning_model_name].url,  # API基础URL
+            role_map={
+                "system": "system",
+                "user": "user",
+                "assistant": "assistant",
+                "tool": "tool",
+                "model": "assistant",
+            },
         ),
+        # reasoning_model=DeepSeek(
+        #     id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+        #     name=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].model_name,  # 模型名称
+        #     api_key=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].api_key,  # API密钥
+        #     base_url=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].url,  # API基础URL
+        # ),
         # 配置代理的工具
+        tool_choice="auto",  # 强制模型调用一个工具
         tools=[
             # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
             # search_web_images,
@@ -228,6 +262,10 @@ You are an expert in report writing, and are good at writing up to 3 chapter nam
         # markdown=True,  # 启用Markdown格式输出
         show_tool_calls=True,
     )
+
+
+    
+
     # Content Scraper: Extracts and processes article content
     # article_scraper: Agent = Agent(
     #     model=OpenAIChat(
@@ -369,56 +407,73 @@ You are Research Report Writing-X, an elite content creator who combines excelle
         use_search_cache: bool = True,
         use_scrape_cache: bool = True,
         use_cached_report: bool = True,
-    ) -> Iterator[RunResponse]:
+    ) -> Iterator[RunResponseEvent]:
         logger.info(f"Generating a blog post on: {topic}")
 
         # Use the cached blog post if use_cache is True
         if use_cached_report:
             cached_report_post = self.get_cached_report_post(topic)
             if cached_report_post:
-                yield RunResponse(
-                    content=cached_report_post, event=RunEvent.workflow_completed
+                yield RunResponseContentEvent(
+                    content=cached_report_post, event=RunEvent.run_response_content
                 )
                 return
 
         # 生成章节列表
-        yield from self.chapter.run(topic, stream=True)
-        chapter_list = self.chapter.run_response.content
-        logger.info(f"chapter_list:{chapter_list}")
+        last_event = None
+
+        for event in self.chapter.run(topic, stream=True):
+            yield event
+            last_event = event
+
+        if last_event:
+            if isinstance(last_event.content, dict):
+                # 使用Pydantic的model_validate方法将Any类型转换为Keyword_list
+                Keyword_list_result: Keyword_list|None = Keyword_list.model_validate(last_event.content)
+            else:
+                Keyword_list_result = last_event.content
+
+
+        logger.info(f"Keyword_list_result:{Keyword_list_result}")
+        logger.info(type(Keyword_list_result))
         # print(dir(chapter_list))
         # 搜索章节 搜索引擎新闻与图片列表
         search_news_dict = {}
         search_image_dict = {}
         news_list = []
         image_list = []
-        for chapter in chapter_list.topic_list[0:1]:
-            # print(chapter)
-            yield from self.searcher_news.run(chapter, stream=True)
-            yield from self.searcher_images.run(chapter, stream=True)
+        if Keyword_list_result:
+            for chapter in Keyword_list_result.keyword_list[0:1]:
+                logger.info(f"chapter:{chapter}")
+                self.searcher_news.run(chapter, stream=False)
+                self.searcher_images.run(chapter, stream=False)
 
-            search_result_news = self.searcher_news.run_response.content
-            search_result_image = self.searcher_images.run_response.content
+                search_result_news : search_news_result|None = search_news_result.model_validate(self.searcher_news.run_response.content)
+                search_result_image : search_images_result|None = search_images_result.model_validate(self.searcher_images.run_response.content)
+                logger.info(type(search_result_news))
+                logger.info(type(search_result_image))
+                logger.info(f"search_result_news:{search_result_news}")
+                logger.info(f"search_result_image:{search_result_image}")
+                news_list.extend(search_result_news.search_result_news)
+                image_list.extend(search_result_image.search_result_image)
 
-            news_list.extend(search_result_news)
-            image_list.extend(search_result_image)
+
 
         logger.info(f"news_list:{news_list}")
         logger.info(f"image_list:{image_list}")
         logger.info(dir(news_list[0]))
-        logger.info(type(news_list[0]))
 
         # 去重url
-        for news in news_list:
-            search_news_dict.setdefault(news.url,news)
-        for image in image_list:
-            search_image_dict.setdefault(image.image_src,image)
- 
-        news_list = []
-        image_list = []
-        for news in search_news_dict.values():
-            news_list.append(asdict(news))
-        for image in search_image_dict.values():
-            image_list.append(asdict(image))
+        # 使用字典推导式直接完成去重和转换
+        unique_news = {news.url: news.model_dump() for news in news_list}
+        unique_images = {image.image_src: image.model_dump() for image in image_list}
+
+        # 直接获取字典值列表
+        news_list = list(unique_news.values())
+        image_list = list(unique_images.values())
+
+        logger.info(f"去重后news_list数量:{len(news_list)}")
+        logger.info(f"去重后image_list数量:{len(image_list)}")
 
         logger.info(f"news_list:{news_list}")
         logger.info(f"image_list:{image_list}")
@@ -616,7 +671,7 @@ if __name__ == "__main__":
 
     # Execute the workflow with caching enabled
     # Returns an iterator of RunResponse objects containing the generated conte
-    blog_post: Iterator[RunResponse] = generate_report_post.run(
+    blog_post: Iterator[RunResponseEvent] = generate_report_post.run(
         topic=topic,
         use_search_cache=True,
         use_scrape_cache=True,

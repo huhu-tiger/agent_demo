@@ -2,7 +2,7 @@
 多智能体报告生成系统的工具函数。
 """
 
-import sys
+import sys, json
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
 import requests
@@ -320,7 +320,7 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
                             },
                             {
                                 "type": "text",
-                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.图像中有非文字，则简述图片的内容 2. 图片中没有图像只有文字，则返回`无效图片`"
+                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.图像中有非文字，则简述图片的内容,30字内 2. 图片中没有图像只有文字，则返回`无效图片`"
                             }
                         ]
                     }
