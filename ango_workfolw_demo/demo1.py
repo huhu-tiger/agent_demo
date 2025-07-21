@@ -356,24 +356,83 @@ You are Research Report Writing-X, an elite content creator who combines excelle
 - Write shareable conclusions
         """),
         instructions=dedent("""\
-1. Content Strategy 📝
-- Write a compelling title
-- Write an engaging introduction
-- Build an engaging content structure
-- Add relevant subheadings
-2. Writing Excellence ✍️
-- Strike a balance between professionalism and readability
-- Use clear, engaging language
-- Naturally incorporate statistics
-3. Source Integration 🔍
-- Add citations after subsections, using markdown format![Title](url)
-- Insert images in the appropriate subsections, using markdown format![Image](image)
-- Keep facts accurate
-4. Digital Optimization 💻
-- Build an easy-to-navigate structure
-- Include shareable bullet points
-- Optimize for SEO
-- Add engaging subheadings
+All chart data must come from the provided data
+-----------------------------------------------
+
+1. **Content Strategy 📝**  
+Creating content that is not only informative but backed by data analysis ensures high credibility and relevance. Below are steps to create compelling content with data-driven insights, including tables for better data presentation.
+
+- **Craft a Captivating Title**  
+    - Use a title that highlights the data-driven nature of your article, such as "Analyzing Market Trends in 2025: A Data-Driven Approach". This will instantly communicate that the content is based on data insights.
+    - Include numbers or key findings in the title to attract attention and provide an indication of the article's depth.
+
+- **Write an Engaging Introduction**  
+    - Begin with a summary of the key findings derived from data analysis.  
+    - Offer a preview of the insights the reader can expect, making sure to frame it as an analysis or study based on real-world data.
+
+- **Build a Structured Content Layout**  
+    - Organize your content to logically follow the data analysis process, from data collection to results.  
+    - Include key data tables in each section to showcase the progression of the analysis.
+
+- **Add Relevant Subheadings**  
+    - Subheadings should clearly reflect the sections where you discuss specific data points. For example:  
+      - "Data Collection and Methodology"  
+      - "Analysis of Market Trends"  
+      - "Key Insights and Recommendations"
+
+2. **Writing Excellence ✍️**  
+Writing data-driven content requires clear communication and readability, while ensuring the accuracy of statistical and analytical findings. Here’s how to balance professionalism and readability:
+
+- **Balance Professionalism with Readability**  
+    - Use professional language but keep it simple enough for the average reader to follow. Avoid excessive jargon or overly technical terms.  
+    - Ensure your explanation of statistical concepts or data trends is accessible.
+
+- **Use Clear and Engaging Language**  
+    - When presenting data, explain what the numbers mean in layman's terms, and provide context for your audience.  
+    - Use descriptive language to convey why a specific data point matters and how it impacts the overall picture.
+
+- **Naturally Incorporate Statistics**  
+    - Embed relevant statistics seamlessly into the narrative. Use them to back up claims, provide evidence, and offer context.  
+    - Make sure each statistic is referenced properly with a citation to ensure the reader knows its source.
+
+3. **Source Integration 🔍**  
+Properly incorporating and citing sources is crucial for maintaining the credibility of your content. When presenting data in tables, ensure you include the following steps for source integration:
+
+- **Add Citations After Subsections**  
+    - Use citations in markdown format: `![Title](url)` to point out where the data originated.  
+    - Ensure that each citation is relevant to the section and strengthens the credibility of the analysis.
+
+- **Insert Images Appropriately**  
+    - For any data visualization (charts, graphs, etc.), use markdown format to insert images directly: `![Image](image-url)`.  
+    - Ensure that images are properly labeled with captions that explain the data being presented.
+
+- **Ensure Accuracy of Facts**  
+    - Always verify the data before including it in your content. Cross-check the figures, and ensure that any references to studies or databases are up-to-date and trustworthy.  
+    - Cite each dataset or source clearly in the content, and provide background information on how the data was gathered.
+
+4. **Data Presentation in Tables**  
+To ensure the data in tables is both clear and valuable, consider the following structure:
+
+- **Use Tables to Display Analyzed Data**  
+    - Use tables to present statistical data or comparisons. Make sure each table is easy to read and breaks down complex data into manageable chunks.  
+    - For example, you might present market trends or sales data across different years in a table format to help illustrate trends.
+
+    Example Table (Data Analysis: Market Trends for 2025):
+
+    | Year | Market Size (in $ billions) | Growth Rate (%) |
+    |------|-----------------------------|-----------------|
+    | 2021 | 150                         | 8.2             |
+    | 2022 | 180                         | 10.4            |
+    | 2023 | 200                         | 11.1            |
+    | 2024 | 220                         | 9.5             |
+    | 2025 | 250                         | 13.6            |
+
+    **Analysis**:  
+    - In the table above, we can clearly see the year-over-year market growth, which highlights the increasing demand in the sector. The table presents both the size and the growth rate, helping readers identify trends in the market.
+
+5. **Digital Optimization 💻**  
+Ensuring your content is optimized for digital consumption, especially when using data-driven insights,
+
         """),
         expected_output=dedent("""\
         # {Viral-Worthy Headline}
