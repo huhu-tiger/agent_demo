@@ -42,7 +42,7 @@ def setup_logging(level: Optional[str] = None, log_to_file: bool = True):
     
     # 创建格式化器 - 添加文件名和行号
     formatter = AgentLogFormatter(
-        fmt="%(asctime)s | %(levelname)s | %(agent)s | %(filename)s:%(lineno)d | %(message)s",
+        fmt="%(asctime)s | %(levelname)s | %(agent)s | %(pathname)s:%(lineno)d | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     
@@ -116,4 +116,4 @@ def get_logger(name: str, agent_name: Optional[str] = None):
     return logger
 
 # 默认设置日志
-logger = setup_logging() 
+# logger = setup_logging() 

@@ -9,14 +9,18 @@ from pydantic import BaseModel, Field
 class SearchResultNews(BaseModel):
     """
     Represents a single search result item.
-    表示单个搜索结果项。
     """
-    title: str = Field(description="新闻文章或报告的标题")
-    url: str = Field(description="内容的访问链接")
-    # snippet: str = Field(description="A brief summary or snippet of the content. 内容的简短摘要。")
+    title: str = Field(description="标题")
+    url: str = Field(description="访问链接")
     summary: Optional[str] = Field(None, description="内容的摘要")
-    # site_name: Optional[str] = Field(None, description="网站的名称")
-    # site_icon: Optional[str] = Field(None, description="网站的图标")
+
+
+
+class search_news_result(BaseModel):
+    """表示搜索新闻的结果"""
+    search_result_news: List[SearchResultNews] = Field(
+        default_factory=list, description="新闻列表"
+    )
 
 class SearchResultImage(BaseModel):
     """

@@ -14,7 +14,7 @@ from .logging_config import get_logger
 from . import config
 # 获取日志记录器
 logger = get_logger(__name__, "Utils")
-logger.info(f"Utils logger initialized")
+# logger.info(f"Utils logger initialized")
 # --- API Configuration is now managed in core/config.py ---
 
 
@@ -129,19 +129,22 @@ def search_bochai(chapter: str, count: int = 20) -> List[SearchResultNews|Search
         return []
 
 
-def search_searxng(chapter: str, page: int = 1, language: str = "zh-CN", categories: str = "general") -> List[SearchResultNews|SearchResultImage]:
+def search_searxng(keyword: str ) -> List[SearchResultNews]:
     """
     Performs a search using the SearXNG Search API.
 
     Args:
-        chapter: The search query chapter.
-        page: The page number for pagination,
-        language: The language for search results, defaults to zh-CN.
-        categories: The search category, either "general" or "images".
+        keyword: The search query keyword.
 
     Returns:
         A list of SearchResult objects.
     """
+
+    page: int = 1
+    language: str = "zh-CN"
+    categories: str = "general"
+
+
     if categories not in ["general", "images"]:
         logger.warning(f"无效的类别 '{categories}'，默认使用 'general'")
         categories = "general"
@@ -149,10 +152,10 @@ def search_searxng(chapter: str, page: int = 1, language: str = "zh-CN", categor
     if not config.SEARXNG_API_URL:
         logger.error("SEARXNG_API_URL未配置。")
         return []
-    logger.info(f"正在使用SearXNG搜索: {chapter}")
+    logger.info(f"正在使用SearXNG搜索: {keyword}")
     try:
         request_body = {
-            "q": chapter,
+            "q": keyword,
             "format": "json",
             "pageno": page,
             "language": language,

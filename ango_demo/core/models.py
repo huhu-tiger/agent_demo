@@ -9,9 +9,9 @@ from typing import Dict, List, Optional, Any
 @dataclass
 class SearchResultNews:
     """新闻搜索结果模型"""
-    title: str
-    url: str
-    summary: str
+    title: str = Field(description="标题")
+    url: str = Field(description="访问链接")
+    summary: str = Field(description="内容的摘要")
 
 
 @dataclass

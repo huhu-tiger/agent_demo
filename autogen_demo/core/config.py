@@ -64,6 +64,20 @@ class ModelConfigManager:
                 },
             )
             logger.info("已加载 Qwen Plus 模型配置")
+        if os.getenv("QWEN_Instruct_API_KEY"):
+            self.models["Qwen3-235B-A22B-Instruct-2507"] = OpenAIChatCompletionClient(
+                model=os.getenv("QWEN_Instruct_MODEL", "Qwen3-235B-A22B-Instruct-2507"),
+                base_url=os.getenv("QWEN_Instruct_BASE_URL",""),
+                api_key=os.getenv("QWEN_Instruct_API_KEY") or "",
+                model_info={
+                    "vision": False,
+                    "function_calling": True,
+                    "json_output": True,
+                    "family": ModelFamily.UNKNOWN,
+                    "structured_output": True,
+                },
+            )
+            logger.info("已加载 QWEN_Instruct_API_KEY 模型配置")
         # Qwen VL 配置
         if os.getenv("QWEN_VL_API_KEY"):
             self.models["qwen-vl"] = OpenAIChatCompletionClient(
