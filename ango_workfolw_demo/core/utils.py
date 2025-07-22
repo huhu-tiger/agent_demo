@@ -5,7 +5,7 @@
 import sys, json
 from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
-import requests
+import requests, time
 from pathlib import Path
 import pandas as pd
 # 确保可以导入config模块
@@ -135,14 +135,18 @@ def search_web_images(chapter: str, images_num: int=10) -> List[SearchResultImag
     # searxng_result_general = search_searxng(chapter=chapter, page=1, language="zh-CN", categories="general")
     logger.info(f"search_web_images: {chapter}, images_num:{images_num}")
     result = []
-    searxng_result_images = search_searxng(chapter=chapter, page=2, language="zh-CN", categories="images")
-    logger.info(f"searxng_result_images: {searxng_result_images}")
-    for image in searxng_result_images:
-        image_analysis = parse_image_url(image.image_src)
-        logger.info(f"image_analysis: {image_analysis}")
-        if "无效" in image_analysis.description:
-            continue
-        result.append(SearchResultImage(image_src=image.image_src,description=image_analysis.description,title="图片"))
+    searxng_result_images1 = search_searxng(chapter=chapter, page=2, language="zh-CN", categories="images")
+    time.sleep(10)
+    searxng_result_images2 = search_searxng(chapter=chapter, page=1, language="zh-CN", categories="images")
+    logger.info(f"searxng_result_images1: {searxng_result_images1}")
+    logger.info(f"searxng_result_images2: {searxng_result_images2}")
+    result = [*searxng_result_images1, *searxng_result_images2]
+    # for image in searxng_result_images:
+    #     image_analysis = parse_image_url(image.image_src)
+    #     logger.info(f"image_analysis: {image_analysis}")
+    #     if "无效" in image_analysis.description:
+    #         continue
+    #     result.append(SearchResultImage(image_src=image.image_src,description=image_analysis.description,title="图片"))
     logger.info(f"search_web_images result: {result}")
     return result
 
@@ -281,63 +285,72 @@ def search_searxng(chapter: str, page: int = 1, language: str = "zh-CN", categor
         logger.error(f"SearXNG搜索失败: {e}")
         return []
 
-
-def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
+@tool(
+    name="图片分析工具",                # Custom name for the tool (otherwise the function name is used)
+    # description="通过博查搜索引擎搜索新闻和图片,count为搜索结果的数量",  # Custom description (otherwise the function docstring is used)
+    show_result=True,                               # Show result after function call
+    stop_after_tool_call=False,                      # Return the result immediately after the tool call and stop the agent
+    tool_hooks=[logger_hook],                       # Hook to run before and after execution
+    requires_confirmation=False,                     # Requires user confirmation before execution
+    # cache_results=True,                             # Enable caching of results
+    # cache_dir="/tmp/agno_cache",                    # Custom cache directory
+    # cache_ttl=3600                                  # Cache TTL in seconds (1 hour)
+)
+def parse_image_url(search_images: List[SearchResultImage]) ->  List[SearchResultImage]:
     """
     Analyzes an image from a URL using the Vision API.
 
     Args:
-        image_url: The URL of the image to analyze.
+        search_images: The list of images to analyze.
 
     Returns:
-        An ImageAnalysis object or None if analysis fails.
+        A list of SearchResult objects.
     """
 
     model_config = config.model_config_manager.get_model_config("qwen-vl")
     if not model_config:
         logger.warning("QWEN_VL_API_KEY未设置。跳过图像分析。")
         return None
-        
-    logger.info(f"正在分析图像: {image_url}")
-    # headers = {"Authorization": f"Bearer {model_config.api_key}"}
-    try:
-        response = _make_api_request(
-            url=model_config.url+"/chat/completions",  # type: ignore[attr-defined]
-            method="POST", 
-            # headers=headers, 
-            json={
-                "model": model_config.model_name,
-                "stream": False,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": image_url
-                                }
-                            },
-                            {
-                                "type": "text",
-                                "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.图像中有非文字，则简述图片的内容,30字内 2. 图片中没有图像只有文字，则返回`无效图片`"
-                            }
-                        ]
-                    }
-                ]
-            }
-        )
-        if response.get("choices", [{}])[0].get("message", {}).get("content", ""):
-            return ImageAnalysis(image_src=image_url, description=response.get("choices", [{}])[0].get("message", {}).get("content", ""))
-        else:
-            return ImageAnalysis(image_src=image_url, description="无效图片")
-    except Exception as e:
-        logger.error(f"Image analysis for {image_url} failed: {e}")
-        return ImageAnalysis(
-            image_src=image_url,
-            description="无效图片",
-        )
 
+    result = []
+    for image in search_images:
+        logger.info(f"正在分析图像: {image.image_src}")
+        # headers = {"Authorization": f"Bearer {model_config.api_key}"}
+        try:
+            response = _make_api_request(
+                url=model_config.url+"/chat/completions",  # type: ignore[attr-defined]
+                method="POST", 
+                # headers=headers, 
+                json={
+                    "model": model_config.model_name,
+                    "stream": False,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": image.image_src
+                                    }
+                                },
+                                {
+                                    "type": "text",
+                                    "text": "你是一名专业的图片分析师，擅长解析图片中的内容与文字。 要求： 1.图像中有非文字，则简述图片的内容,30字内 2. 图片中没有图像只有文字，则返回`无效图片`"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            )
+            if response.get("choices", [{}])[0].get("message", {}).get("content", ""):
+                result.append(SearchResultImage(image_src=image.image_src, description=response.get("choices", [{}])[0].get("message", {}).get("content", ""))) 
+            else:
+                result.append(SearchResultImage(image_src=image.image_src, description="无效图片")) 
+        except Exception as e:
+            logger.error(f"Image analysis for {image.image_src} failed: {e}")
+            result.append(SearchResultImage(image_src=image.image_src, description="无效图片"))
+    return result
 
 def perform_table_reasoning(data_snippets: List[str]) -> List[TableData]:
     """

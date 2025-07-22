@@ -22,13 +22,13 @@ from dataclasses import asdict
 import sys
 from pathlib import Path
 from core.models import *
-
+from fastapi.middleware.cors import CORSMiddleware
 # 确保可以导入config模块
 current_dir = Path(__file__).parent.absolute()
 sys.path.append(str(current_dir))
 import config  # 使用绝对导入
 from config import model_config_manager  # 导入模型配置管理器
-from core.utils import search_web_news, search_web_images
+from core.utils import search_web_news, search_web_images, parse_image_url
 
 logger.info(model_config_manager.models)
 # 导入日志模块
@@ -183,6 +183,7 @@ You are an expert in web search and are good at writing up to three web search k
         ),
         instructions=dedent("""\
     1. 搜索相关新闻，至少 10 条
+    2. 不需要生成任何内容，只需要返回搜索结果
 
         """),
         # markdown=True,  # 启用Markdown格式输出
@@ -244,7 +245,7 @@ You are an expert in web search and are good at writing up to three web search k
         #     ].url,  # API基础URL
         # ),
         # 配置代理的工具
-        tool_choice="auto",  # 强制模型调用一个工具
+        # tool_choice="auto",  # 强制模型调用一个工具
         tools=[
             # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
             # search_web_images,
@@ -256,14 +257,89 @@ You are an expert in web search and are good at writing up to three web search k
             """
 你是一名数据收集专家，擅长通过网络搜索图片
 # 步骤如下：
-## 1. 必须调用 [search_web_images] 工具搜索相关图片，至少 10 条
+## 1. 不考虑任何因素，必须调用 [search_web_images] 工具搜索相关图片，至少 10 条
+## 2. 不需要生成任何内容，只需要返回搜索结果
+
                         """
         ),
         # markdown=True,  # 启用Markdown格式输出
         show_tool_calls=True,
     )
 
+    image_analysis: Agent = Agent(
+        stream=False,
+        # save_response_to_file="1.md",
+        response_model=search_images_result,
+        # 配置DeepSeek模型，使用配置文件中的模型参数
+        # model=DeepSeek(
+        #     id=model_config_manager.models["deepseek-r1"].model_name,  # 模型ID
+        #     name=model_config_manager.models["deepseek-r1"].model_name,  # 模型名称
+        #     api_key=model_config_manager.models["deepseek-r1"].api_key,  # API密钥
+        #     base_url=model_config_manager.models["deepseek-r1"].url  # API基础URL
+        # ),
+        description=dedent(
+            """\
+图片分析工具
+"""
+        ),
+        model=OpenAIChat(
+            id=model_config_manager.models[model_name].model_name,  # 模型ID
+            name=model_config_manager.models[model_name].model_name,  # 模型名称
+            api_key=model_config_manager.models[model_name].api_key,  # API密钥
+            base_url=model_config_manager.models[model_name].url,  # API基础URL
+            role_map={
+                "system": "system",
+                "user": "user",
+                "assistant": "assistant",
+                "tool": "tool",
+                "model": "assistant",
+            },
+        ),
+        parser_model=OpenAIChat(
+            id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+            name=model_config_manager.models[reasoning_model_name].model_name,  # 模型名称
+            api_key=model_config_manager.models[reasoning_model_name].api_key,  # API密钥
+            base_url=model_config_manager.models[reasoning_model_name].url,  # API基础URL
+            role_map={
+                "system": "system",
+                "user": "user",
+                "assistant": "assistant",
+                "tool": "tool",
+                "model": "assistant",
+            },
+        ),
+        # reasoning_model=DeepSeek(
+        #     id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+        #     name=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].model_name,  # 模型名称
+        #     api_key=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].api_key,  # API密钥
+        #     base_url=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].url,  # API基础URL
+        # ),
+        # 配置代理的工具
+        # tool_choice="auto",  # 强制模型调用一个工具
+        tools=[
+            # ReasoningTools(add_instructions=True),  # 添加推理工具，并包含指令
+            # search_web_images,
+            parse_image_url,
+        ],
+        system_message_role="system",
+        create_default_system_message=False,
+        system_message=dedent(
+            """
+你是一名图片分析专家，擅长通过图片分析，获取图片的详细信息
+# 步骤如下：
+## 1. 不考虑任何因素，必须调用 [parse_image_url] 工具分析图片
 
+                        """
+        ),
+        # markdown=True,  # 启用Markdown格式输出
+        show_tool_calls=True,
+    )
     
 
     # Content Scraper: Extracts and processes article content
@@ -319,12 +395,13 @@ You are an expert in web search and are good at writing up to three web search k
 
     # Content Writer Agent: Crafts engaging blog posts from research
     writer: Agent = Agent(
-        save_response_to_file="1.md",
+        # save_response_to_file="1.md",
         model=OpenAIChat(
             id=model_config_manager.models[model_name].model_name,  # 模型ID
             name=model_config_manager.models[model_name].model_name,  # 模型名称
             api_key=model_config_manager.models[model_name].api_key,  # API密钥
             base_url=model_config_manager.models[model_name].url,  # API基础URL
+            max_tokens=10000,
             role_map={
                 "system": "system",
                 "user": "user",
@@ -333,18 +410,18 @@ You are an expert in web search and are good at writing up to three web search k
                 "model": "assistant",
             },
         ),
-        reasoning_model=DeepSeek(
-            id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
-            name=model_config_manager.models[
-                reasoning_model_name
-            ].model_name,  # 模型名称
-            api_key=model_config_manager.models[
-                reasoning_model_name
-            ].api_key,  # API密钥
-            base_url=model_config_manager.models[
-                reasoning_model_name
-            ].url,  # API基础URL
-        ),
+        # reasoning_model=DeepSeek(
+        #     id=model_config_manager.models[reasoning_model_name].model_name,  # 模型ID
+        #     name=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].model_name,  # 模型名称
+        #     api_key=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].api_key,  # API密钥
+        #     base_url=model_config_manager.models[
+        #         reasoning_model_name
+        #     ].url,  # API基础URL
+        # ),
         description=dedent("""\
 You are Research Report Writing-X, an elite content creator who combines excellent journalism skills with market analysis expertise. Your strengths include:
 
@@ -442,16 +519,19 @@ Ensuring your content is optimized for digital consumption, especially when usin
 
         ## {Compelling Section 1}
         {Key insights and analysis}
+       {Properly image sources with links}\
         {Expert quotes and statistics}
        {Properly attributed sources with links}\
         ## {Engaging Section 2}
         {Deeper exploration}
         {Real-world examples}
-      {Properly attributed sources with links}\
+       {Properly image sources with links}\
+       {Properly attributed sources with links}\
         ## {Practical Section 3}
         {Actionable insights}
         {Expert recommendations}
-      {Properly attributed sources with links}\
+       {Properly image sources with links}\
+       {Properly attributed sources with links}\
         ## Key Takeaways
         - {Shareable insight 1}
         - {Practical takeaway 2}
@@ -537,10 +617,9 @@ Ensuring your content is optimized for digital consumption, especially when usin
         logger.info(f"news_list:{news_list}")
         logger.info(f"image_list:{image_list}")
 
-        # # Scrape the search results
-        # scraped_articles: Dict[str, ScrapedArticle] = self.scrape_articles(
-        #     topic, search_results, use_scrape_cache
-        # )
+        # 分析图片
+        search_result_image : search_images_result|None = search_images_result.model_validate(self.image_analysis.run_response.content)
+        image_list = list(search_result_image.search_result_image)
 
         # Prepare the input for the writer
         writer_input = {
@@ -686,57 +765,120 @@ Ensuring your content is optimized for digital consumption, especially when usin
     #     # Save the scraped articles in the session state
     #     self.add_scraped_articles_to_cache(topic, scraped_articles)
     #     return scraped_articles
+topic = "芯片产业"
+url_safe_topic = topic.lower().replace(" ", "-")
 
+# Initialize the blog post generator workflow
+# - Creates a unique session ID based on the topic
+# - Sets up SQLite storage for caching results
+generate_report_post = ReportPostGenerator(
+    session_id=f"generate-blog-post-on-{url_safe_topic}",
+    # storage=SqliteStorage(
+    #     table_name="generate_report_post_workflows",
+    #     db_file="tmp/agno_workflows.db",
+    # ),
+    debug_mode=True,
+)
+
+from agno.tools import tool
+# 1. 封装工作流为工具
+@tool(name="generate_report", description="生成专业报告")
+def generate_report_tool(topic: str) -> Iterator[str]:
+    # 这里直接流式返回 markdown 内容
+    for event in generate_report_post.run(topic=topic, use_search_cache=True, use_scrape_cache=True, use_cached_report=True):
+        # 只返回最终内容事件
+        if hasattr(event, "content") and event.content:
+            yield event.content
+
+# 2. 创建 workflow_agent，并注册工具
+workflow_agent = Agent(
+    name="Workflow Agent",
+    model=OpenAIChat(
+        id=model_config_manager.models[model_name].model_name,  # 模型ID
+        name=model_config_manager.models[model_name].model_name,  # 模型名称
+        api_key=model_config_manager.models[model_name].api_key,  # API密钥
+        base_url=model_config_manager.models[model_name].url,  # API基础URL
+        max_tokens=10000,
+        role_map={
+            "system": "system",
+            "user": "user",
+            "assistant": "assistant",
+            "tool": "tool",
+            "model": "assistant",
+        },
+    ),
+    tools=[generate_report_tool],  # 注册工作流工具
+    instructions=["你是一个工作流专家，请根据用户的需求，使用工具生成专业报告,报告完整的返回,不要有任何的解释"],
+    # storage=SqliteStorage(table_name="finance_agent"),
+    add_datetime_to_instructions=True,
+    add_history_to_messages=True,
+    num_history_responses=5,
+    markdown=True,
+)
+
+from datetime import datetime
+# 示例tool，流式返回字符串
+@tool(name="getCurrentTime", description="获取当前时间")
+def get_current_time_tool(query: str="")->str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# demo agent，注册该tool
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from agno.storage.sqlite import SqliteStorage
+
+demo_agent = Agent(
+    stream=True,
+    name="Demo Agent",
+    model=OpenAIChat(
+        id=model_config_manager.models[model_name].model_name,  # 模型ID
+        name=model_config_manager.models[model_name].model_name,  # 模型名称
+        api_key=model_config_manager.models[model_name].api_key,  # API密钥
+        base_url=model_config_manager.models[model_name].url,  # API基础URL
+        role_map={
+            "system": "system",
+            "user": "user",
+            "assistant": "assistant",
+            "tool": "tool",
+            "model": "assistant",
+        },
+    ),
+    tools=[get_current_time_tool],
+
+    instructions=["你可以调用 getCurrentTime 工具来获取当前时间。"],
+    # add_datetime_to_instructions=True,
+    markdown=True,
+)
+
+# 注册到playground
+playground = Playground(agents=[workflow_agent])
+app = playground.get_app()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=['*'],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 保留原有的 main 入口
+if __name__ == "__main__":
+    playground.serve("demo1_ui:app", host="0.0.0.0", reload=True)
 
 # Run the workflow if the script is executed directly
-if __name__ == "__main__":
-    import random
+# if __name__ == "__main__":
+#     import random
 
-    from rich.prompt import Prompt
+#     from rich.prompt import Prompt
 
-    # Fun example prompts to showcase the generator's versatility
-    # example_prompts = [
-    #     "Why Cats Secretly Run the Internet",
-    #     "The Science Behind Why Pizza Tastes Better at 2 AM",
-    #     "Time Travelers' Guide to Modern Social Media",
-    #     "How Rubber Ducks Revolutionized Software Development",
-    #     "The Secret Society of Office Plants: A Survival Guide",
-    #     "Why Dogs Think We're Bad at Smelling Things",
-    #     "The Underground Economy of Coffee Shop WiFi Passwords",
-    #     "A Historical Analysis of Dad Jokes Through the Ages",
-    # ]
 
-    # # Get topic from user
-    # topic = Prompt.ask(
-    #     "[bold]Enter a blog post topic[/bold] (or press Enter for a random example)\n✨",
-    #     default=random.choice(example_prompts),
-    # )
+#     blog_post: Iterator[RunResponseEvent] = generate_report_post.run(
+#         topic=topic,
+#         use_search_cache=True,
+#         use_scrape_cache=True,
+#         use_cached_report=True,
+#     )
 
-    # Convert the topic to a URL-safe string for use in session_id
-    topic = "芯片产业"
-    url_safe_topic = topic.lower().replace(" ", "-")
-
-    # Initialize the blog post generator workflow
-    # - Creates a unique session ID based on the topic
-    # - Sets up SQLite storage for caching results
-    generate_report_post = ReportPostGenerator(
-        session_id=f"generate-blog-post-on-{url_safe_topic}",
-        # storage=SqliteStorage(
-        #     table_name="generate_report_post_workflows",
-        #     db_file="tmp/agno_workflows.db",
-        # ),
-        debug_mode=True,
-    )
-
-    # Execute the workflow with caching enabled
-    # Returns an iterator of RunResponse objects containing the generated conte
-    blog_post: Iterator[RunResponseEvent] = generate_report_post.run(
-        topic=topic,
-        use_search_cache=True,
-        use_scrape_cache=True,
-        use_cached_report=True,
-    )
-
-    # Print the response
-    pprint_run_response(blog_post, markdown=True)
+#     # Print the response
+#     pprint_run_response(blog_post, markdown=True)
     
