@@ -12,7 +12,7 @@ class SearchResultNews(BaseModel):
     """
     title: str = Field(description="标题")
     url: str = Field(description="访问链接")
-    summary: Optional[str] = Field(None, description="内容的摘要")
+    content: Optional[str] = Field(None, description="内容")
 
 
 

@@ -46,6 +46,7 @@ class ModelConfigManager:
                     "family": ModelFamily.UNKNOWN,
                     "structured_output": True,
                 },
+
             )
             logger.info("已加载 Qwen Plus 模型配置")
 
@@ -76,6 +77,7 @@ class ModelConfigManager:
                     "family": ModelFamily.UNKNOWN,
                     "structured_output": True,
                 },
+                max_tokens=8192,
             )
             logger.info("已加载 QWEN_Instruct_API_KEY 模型配置")
         # Qwen VL 配置

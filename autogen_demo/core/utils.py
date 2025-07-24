@@ -8,6 +8,8 @@ from urllib.parse import urljoin
 from typing import Any, Dict, List, Optional, Sequence
 import requests
 import pandas as pd
+import asyncio
+import aiohttp
 
 from .models import SearchResultNews, SearchResultImage, ImageAnalysis, TableData
 from .logging_config import get_logger
@@ -129,7 +131,116 @@ def search_bochai(chapter: str, count: int = 20) -> List[SearchResultNews|Search
         return []
 
 
-def search_searxng(keyword: str ) -> List[SearchResultNews]:
+def _sync_crawl_url(url: str) -> Optional[str]:
+    """
+    同步爬取URL内容，兼容原有crawl_url逻辑。
+    """
+    try:
+        response = requests.get("https://r.jina.ai/" + url, timeout=60)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.RequestException as e:
+        logger.error(f"crawl_url请求失败，URL: {url}，错误: {e}")
+        return None
+
+async def _async_crawl_url(session: aiohttp.ClientSession, url: str) -> Optional[str]:
+    try:
+        async with session.get("https://r.jina.ai/" + url, timeout=60) as response:
+            if response.status == 200:
+                content = await response.text()
+                print(444444,content)
+                return content
+            else:
+                logger.error(f"crawl_url请求失败，URL: {url}，状态码: {response.status}")
+                return None
+    except Exception as e:
+        logger.error(f"crawl_url请求失败，URL: {url}，错误: {e}")
+        return None
+
+async def _batch_crawl_urls(urls: list[str]) -> list[Optional[str]]:
+    async with aiohttp.ClientSession() as session:
+        tasks = [_async_crawl_url(session, url) for url in urls]
+        return await asyncio.gather(*tasks)
+
+def search_searxng_news(keyword: str ) -> List[SearchResultNews]:
+    """
+    Performs a search using the SearXNG Search API.
+    Args:
+        keyword: The search query keyword.
+    Returns:
+        A list of SearchResult objects.
+    """
+    page: int = 1
+    language: str = "zh-CN"
+    categories: str = "general"
+    if categories not in ["general", "images"]:
+        logger.warning(f"无效的类别 '{categories}'，默认使用 'general'")
+        categories = "general"
+    if not config.SEARXNG_API_URL:
+        logger.error("SEARXNG_API_URL未配置。")
+        return []
+    logger.info(f"正在使用SearXNG搜索: {keyword}")
+    try:
+        request_body = {
+            "q": keyword,
+            "format": "json",
+            "pageno": page,
+            "language": language,
+            "categories": categories
+        }
+        response = _make_api_request(
+            config.SEARXNG_API_URL, 
+            params=request_body
+        )
+
+        logger.info(f"SearXNG Body: {request_body}")
+        items = response.get("results", [])
+
+        skip_domains = ["zhihu.com"]  # 这里填你要跳过的域名
+        urls = []
+        skip_flags = []
+        for item in items:
+            url = item.get("url", "")
+            if any(domain in url for domain in skip_domains):
+                urls.append(None)  # 占位，后面直接用summary
+                skip_flags.append(True)
+            else:
+                urls.append(url)
+                skip_flags.append(False)
+        # 并发爬取内容（只爬取未跳过的url）
+        try:
+            crawl_urls = [u for u in urls if u]
+            crawl_contents = asyncio.run(_batch_crawl_urls(crawl_urls))
+        except Exception as e:
+            logger.error(f"批量爬取失败，降级为同步: {e}")
+            crawl_contents = [_sync_crawl_url(u) for u in crawl_urls]
+        # 合并内容，跳过的用None
+        contents = []
+        crawl_idx = 0
+        for is_skip, url in zip(skip_flags, urls):
+            if is_skip:
+                contents.append(None)
+            else:
+                contents.append(crawl_contents[crawl_idx])
+                crawl_idx += 1
+        results = []
+        for item, content, is_skip in zip(items, contents, skip_flags):
+            if is_skip:
+                logger.info(f"跳过域名: {item.get('url', '')}，content将使用原始summary: {item.get('content', '')}")
+            results.append(
+                SearchResultNews(
+                    title=item.get("title", ""),
+                    url=item.get("url", ""),
+                    content=item.get("content", "") if is_skip or not content else content,
+                )
+            )
+        logger.info(f"SearXNG搜索结果: {results}")
+        return results
+    except Exception as e:
+        logger.error(f"SearXNG搜索失败: {e}")
+        return []
+
+def search_searxng_images(keyword: str) -> List[SearchResultImage]:
     """
     Performs a search using the SearXNG Search API.
 
@@ -139,11 +250,9 @@ def search_searxng(keyword: str ) -> List[SearchResultNews]:
     Returns:
         A list of SearchResult objects.
     """
-
-    page: int = 1
+    page: int = 2
     language: str = "zh-CN"
-    categories: str = "general"
-
+    categories: str = "images"
 
     if categories not in ["general", "images"]:
         logger.warning(f"无效的类别 '{categories}'，默认使用 'general'")
@@ -167,27 +276,17 @@ def search_searxng(keyword: str ) -> List[SearchResultNews]:
         )
         logger.info(f"SearXNG Body: {request_body}")
         # Adapt the response structure to SearchResult model
-        if categories == "general":
-            results = [
-                SearchResultNews(
-                    title=item.get("title", ""),
-                    url=item.get("url", ""),
-                    summary=item.get("content", ""),
-                )
-                for item in response.get("results", [])
-            ]
-        elif categories == "images":
-            results = [
-                SearchResultImage(
-                    image_src=item.get("img_src", "")
-                )
-                for item in response.get("results", [])
-            ]
+
+        results = []
+        for item in response.get("results", []):
+            desc = parse_image_url(item.get("img_src", ""))
+            if desc:
+                results.append(SearchResultImage(image_src=item.get("img_src", ""), description=desc.description))
+
         return list(results)
     except Exception as e:
         logger.error(f"SearXNG搜索失败: {e}")
         return []
-
 
 def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
     """
@@ -201,6 +300,7 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
     """
 
     model_config = config.model_config_manager.get_model_config("qwen-vl")
+    logger.info(f"model_config: {model_config}")
     if not model_config:
         logger.warning("QWEN_VL_API_KEY未设置。跳过图像分析。")
         return None
@@ -234,13 +334,16 @@ def parse_image_url(image_url: str) -> Optional[ImageAnalysis]:
                 ]
             }
         )
-        return ImageAnalysis(image_src=image_url, **response)
+     
+        msg = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        if msg == "无效图片" or msg == "" or "无效图片" in msg :
+            return None
+        else:
+            return ImageAnalysis(image_src=image_url, description=msg)
     except Exception as e:
         logger.error(f"Image analysis for {image_url} failed: {e}")
-        return ImageAnalysis(
-            image_src=image_url,
-            description="no_image",
-        )
+        return None
 
 
 def perform_table_reasoning(data_snippets: List[str]) -> List[TableData]:

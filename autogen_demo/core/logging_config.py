@@ -116,4 +116,4 @@ def get_logger(name: str, agent_name: Optional[str] = None):
     return logger
 
 # 默认设置日志
-# logger = setup_logging() 
+logger = setup_logging() 
