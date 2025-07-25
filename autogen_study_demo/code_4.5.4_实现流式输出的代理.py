@@ -9,8 +9,8 @@ Created on Thu Mar 13 11:14:58 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 
@@ -35,18 +35,19 @@ class SmartHomeResponse(BaseModel):
     action: str  # 执行的操作
 
     
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    response_format=SmartHomeResponse,  # 指定结构化输出格式
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-)
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     response_format=SmartHomeResponse,  # 指定结构化输出格式
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+# )
 
+from config import model_client as Ollama_model_client
 
 
 # 创建 AssistantAgent，指定结构化输出格式

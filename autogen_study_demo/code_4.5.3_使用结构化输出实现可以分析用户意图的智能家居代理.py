@@ -9,8 +9,8 @@ Created on Thu Mar 13 11:14:58 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 
@@ -37,21 +37,29 @@ class SmartHomeResponse(BaseModel):
 from autogen_agentchat.base import Response
 from autogen_agentchat.agents import AssistantAgent
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from google import genai  # 假设我们使用 Google 的 Gemini 模型
+# from google import genai  # 假设我们使用 Google 的 Gemini 模型
 
 # 初始化模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-    response_format=SmartHomeResponse,  # 指定结构化输出格式
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+#     response_format=SmartHomeResponse,  # 指定结构化输出格式
     
-)
+# )
+
+from config import model_client
+
+# print(model_client.__dict__)
+
+
 
 # 创建 AssistantAgent，指定结构化输出格式
 agent = AssistantAgent(
     name="smart_home_assistant",
     model_client=model_client,
     system_message="你是一个智能家居助手，能够理解用户的指令并执行相应的操作。",
+    output_content_type=SmartHomeResponse,
+    
 )
 
 

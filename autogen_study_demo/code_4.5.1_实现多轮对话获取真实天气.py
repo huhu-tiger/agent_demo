@@ -11,8 +11,8 @@ Created on Thu Mar 13 11:14:58 2025
 
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 
@@ -39,7 +39,7 @@ def get_weather_info(city: str)-> dict:
     Returns:
         返回的天气信息。
     """
-    url = f"http://山河API接口地址?city={city}"
+    url = f"http://shanhe.kim/api/za/tianqi.php?city={city}"
     response = requests.get(url)
     current_weather ={}
     if response.status_code == 200:
@@ -58,10 +58,12 @@ def get_weather_info(city: str)-> dict:
 
 
 # 初始化模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-)
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+# )
+
+from config import model_client
 
 # 创建 AssistantAgent
 agent = AssistantAgent(

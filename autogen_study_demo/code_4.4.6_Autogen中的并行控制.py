@@ -9,9 +9,10 @@
 Created on Thu Mar 13 14:07:57 2025
 """
 
-# #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# 设置系统代理（根据你的实际代理地址修改）
+import os
+os.environ['HTTP_PROXY'] = 'http://127.0.0.1:1081'  # 根据你的代理地址修改
+os.environ['HTTPS_PROXY'] = 'http://127.0.0.1:1081'  # 根据你的代理地址修改
 
 
 
@@ -68,11 +69,19 @@ base64_tool = HttpTool(
 
 
 # 初始化模型客户端
-model_client_no_parallel_tool_call = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-    parallel_tool_calls=False,  # 禁用并行工具调用
-)
+# model_client_no_parallel_tool_call = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+#     parallel_tool_calls=False,  # 禁用并行工具调用
+# )
+
+from config import model_client 
+
+model_client_no_parallel_tool_call=model_client
+model_client_no_parallel_tool_call.parallel_tool_calls=True
+
+
+
 
 
 async def main():
@@ -81,17 +90,23 @@ async def main():
     assistant = AssistantAgent("multi_tool_assistant", 
                                model_client=model_client_no_parallel_tool_call, 
                                tools=[base64_tool,ip_tool],
-                               system_message="Use tools to solve tasks.")
+                               system_message="Use tools to solve tasks.",
+   
+                               reflect_on_tool_use=True #反射工具调用，模型在得到 工具返回结果后，在重新调用模型，输出最终结果
+                               )
     
 
      # 用户请求获取自己的IP地址
     response = await assistant.on_messages(
         [
-         TextMessage(content="Can you base64 decode the value 'YWJjZGU=',and What's my IP address?", source="user")],
+         TextMessage(content="Can you base64 decode the value 'YWJjZGU=' and base64 decode the value 'MTExMTFhYWRk',and What's my IP address?", source="user")],
         
         CancellationToken(),
     )
-    print(response.chat_message.content)
+    print("="*20+"inner_messages"+"="*20)
+    print(response.inner_messages)
+    print("="*20+"chat_message"+"="*20)
+    print(response.chat_message)
 
 
 

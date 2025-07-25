@@ -8,8 +8,8 @@
 Created on Thu Mar 13 11:14:58 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 import asyncio
 from typing import AsyncGenerator, List, Sequence, Tuple
@@ -18,7 +18,7 @@ from autogen_agentchat.agents import BaseChatAgent
 from autogen_agentchat.base import Response
 from autogen_agentchat.messages import AgentEvent, ChatMessage, TextMessage
 from autogen_core import CancellationToken
-
+from config import model_client
 
 
 class CountDownAgent(BaseChatAgent):
@@ -99,12 +99,13 @@ async def run_countdown_agent() -> None:
     运行倒计时代理并打印每条消息。
     """
     # 创建一个倒计时代理实例
-    countdown_agent = CountDownAgent("countdown")
+    countdown_agent = CountDownAgent(name="countdown")
 
     # 使用给定的任务运行代理，并流式输出响应
     async for message in countdown_agent.on_messages_stream([], CancellationToken()):
         if isinstance(message, Response):
-            print(message.chat_message.content)  # 打印最终消息
+            print(message.chat_message)  # 打印最终消息
+            print(message.inner_messages)
         else:
             print(message.content)  # 打印每条倒计时消息
 

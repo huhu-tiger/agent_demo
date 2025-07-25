@@ -9,8 +9,8 @@ Created on Thu Mar 13 11:14:58 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 from collections import defaultdict
 from datetime import datetime, timedelta
