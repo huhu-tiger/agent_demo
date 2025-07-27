@@ -9,8 +9,8 @@ Created on Wed Mar 19 16:13:28 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import os
@@ -27,12 +27,12 @@ import json
 
 
 # 设置 LLM 客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-)
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+# )
 
-
+from config import model_client
 
  
 # 定义代码编写任务的消息类
@@ -87,7 +87,9 @@ Code: <Your code>""",
         self._model_client = model_client
         self._session_memory: Dict[str, List[CodeWritingTask | CodeReviewTask | CodeReviewResult]] = {}
 
-    @message_handler
+
+    # xxx message_handler 根据message参数的类型 自动匹配到对应的函数
+    @message_handler 
     async def handle_code_writing_task(self, message: CodeWritingTask, ctx: MessageContext) -> None:
         # 为这个请求仅存储消息到临时内存中。
         session_id = str(uuid.uuid4())
@@ -111,7 +113,7 @@ Code: <Your code>""",
         )
         # 将代码评审任务存储在会话内存中。
         self._session_memory[session_id].append(code_review_task)
-        # 发布代码评审任务。
+        # todo 发布代码评审任务, 会进入ReviewerAgent的handle_code_review_task函数
         await self.publish_message(code_review_task, topic_id=TopicId("default", self.id.key))
 
     
@@ -145,6 +147,7 @@ Code: <Your code>""",
             print("-" * 80)
         else:
             # 创建要发送到模型的 LLM 消息列表。
+            # xxx 如果没有approved, 则需要重新生成代码,提取之前所有的message 记录
             messages: List[LLMMessage] = [*self._system_messages]
             for m in self._session_memory[message.session_id]:
                 if isinstance(m, CodeReviewResult):
@@ -155,6 +158,7 @@ Code: <Your code>""",
                     messages.append(UserMessage(content=m.task, source="User"))
                 else:
                     raise ValueError(f"意外的消息类型：{m}")
+            logging.info(f"messages: {messages}")
             # 使用聊天完成 API 生成修订。
             response = await self._model_client.create(messages, cancellation_token=ctx.cancellation_token)
             assert isinstance(response.content, str)
@@ -215,6 +219,14 @@ class ReviewerAgent(RoutedAgent):
         # 为代码评审格式化提示。
         # 如果可用，收集之前的反馈。
         previous_feedback = ""
+        """
+reversed(): 从最新的消息开始向前查找（倒序）
+生成器表达式: (m for m in ... if isinstance(m, CodeReviewResult))
+遍历会话中的所有消息
+只选择类型为 CodeReviewResult 的消息
+next(): 获取第一个匹配的结果
+None: 如果没有找到，返回 None
+        """
         if message.session_id in self._session_memory:
             previous_review = next(
                 (m for m in reversed(self._session_memory[message.session_id]) if isinstance(m, CodeReviewResult)),
@@ -258,9 +270,48 @@ class ReviewerAgent(RoutedAgent):
 
             
 import logging
+import re
 
-logging.basicConfig(level=logging.WARNING)
-logging.getLogger("autogen_core").setLevel(logging.DEBUG)
+class BetterUnicodeFormatter(logging.Formatter):
+    """
+    一个更健壮的日志格式化器，可以解码最终日志消息中的 unicode 转义序列。
+    它使用正则表达式来避免处理已解码字符时出错。
+    """
+    def format(self, record):
+        # 首先，让父类处理初始的格式化（例如，msg % args）。
+        formatted_string = super().format(record)
+        
+        # 安全地从最终格式化的字符串中解码 unicode 转义序列。
+        try:
+            # 这个正则表达式会查找所有的 \\uXXXX 序列并进行替换。
+            # 如果字符串中已经包含了 unicode 字符，它不会失败。
+            return re.sub(
+                r'\\u([0-9a-fA-F]{4})',
+                lambda m: chr(int(m.group(1), 16)),
+                formatted_string
+            )
+        except Exception:
+            # 如果发生任何意想不到的错误，只需返回原始字符串。
+            return formatted_string
+
+# --- 清理并配置日志 ---
+# 获取根日志记录器并移除所有现有的处理器，以防止重复日志。
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# 创建一个带有我们自定义格式化器的新处理器
+handler = logging.StreamHandler()
+formatter = BetterUnicodeFormatter('%(levelname)s:%(name)s:%(message)s')
+handler.setFormatter(formatter)
+
+# 将我们的处理器添加到根日志记录器
+root_logger.addHandler(handler)
+
+# 设置所需的日志级别
+root_logger.setLevel(logging.WARNING)  # 其他库的默认级别
+logging.getLogger("autogen_core").setLevel(logging.DEBUG)  # autogen_core 的特定级别
+logging.getLogger("autogen_core.events").setLevel(logging.DEBUG) # 同时为事件日志启用
 
 
 
@@ -271,6 +322,10 @@ from autogen_core import DefaultTopicId, SingleThreadedAgentRuntime
 async def main() -> None:
     runtime = SingleThreadedAgentRuntime()
     # 注册代理
+    """
+    实际使用时才创建实例
+    runtime 会在需要时调用 lambda() 来创建 ReviewerAgent 实例
+    """
     await ReviewerAgent.register(
         runtime, "ReflexionAgent", lambda: ReviewerAgent(model_client=model_client)
     )
@@ -283,7 +338,7 @@ async def main() -> None:
         message=CodeWritingTask(task="编写一个函数，用于计算列表中所有偶数的和。"),
         topic_id=DefaultTopicId()
     )
-    await runtime.stop_when_idle()
+    await runtime.stop_when_idle()  # 当没有未处理或排队的消息时，停止运行时消息处理循环。
 
 asyncio.run(main())
 

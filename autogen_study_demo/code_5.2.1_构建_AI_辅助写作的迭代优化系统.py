@@ -7,8 +7,8 @@
 Created on Sun Mar 16 07:58:06 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import os
@@ -20,11 +20,11 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 
 # 创建 Gemini 模型客户端.
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了GEMINI_API_KEY
-)
-
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了GEMINI_API_KEY
+# )
+from config import model_client
 # 创建 AssistantAgent，名为 "writer"，负责生成文章内容。
 writer = AssistantAgent("writer", model_client=model_client)
 

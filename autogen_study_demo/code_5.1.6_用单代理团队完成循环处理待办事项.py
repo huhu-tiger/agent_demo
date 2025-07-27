@@ -9,8 +9,8 @@ Created on Sun Mar 16 07:58:06 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import asyncio
@@ -42,31 +42,32 @@ def get_tasknames()-> list:
 
 
 
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-    # timeout = 10
-)
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+#     # timeout = 10
+# )
 
 # 创建硅基流动客户端
-Qwen_model_client = OpenAIChatCompletionClient(
-    base_url="https://硅基流动接口地址"
-    model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
-    api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
-    model_capabilities={
-            "vision": False,
-            "function_calling": True,
-            "json_output": True,
-        },
-    # timeout = 30
-    parallel_tool_calls=False,  # type: ignore
-)
+# Qwen_model_client = OpenAIChatCompletionClient(
+#     base_url="https://硅基流动接口地址"
+#     model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
+#     api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
+#     model_capabilities={
+#             "vision": False,
+#             "function_calling": True,
+#             "json_output": True,
+#         },
+#     # timeout = 30
+#     parallel_tool_calls=False,  # type: ignore
+# )
+from config import model_client as Ollama_model_client
 # 创建任务助手
 task_assistant = AssistantAgent(
     name="looped_assistant",
@@ -94,8 +95,11 @@ async def main():
    return stream
 
 result = asyncio.run(main())
-print(result)
-result.messages[-1].content
+# print(result)
+# result.messages[-1].content
+print("--------------------------------")
+for message in result.messages:
+    print(message.content)
 
 
 

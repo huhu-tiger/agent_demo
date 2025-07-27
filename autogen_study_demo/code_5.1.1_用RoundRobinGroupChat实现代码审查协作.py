@@ -8,8 +8,8 @@
 Created on Thu Mar 13 11:14:58 2025
 """
 
-import nest_asyncio
-nest_asyncio.apply()  # 应用nest_asyncio以便在Jupyter、IPython等环境中支持异步IO
+# import nest_asyncio
+# nest_asyncio.apply()  # 应用nest_asyncio以便在Jupyter、IPython等环境中支持异步IO
 
 import os
 
@@ -23,25 +23,21 @@ from autogen_agentchat.ui import Console
 
 
 # 创建硅基流动客户端
-Qwen_model_client = OpenAIChatCompletionClient(
-    base_url="https://硅基流动接口地址"
-    model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
-    api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
-    model_capabilities={
-            "vision": False,
-            "function_calling": True,
-            "json_output": True,
-        },
-    # timeout = 30
-)
+# Qwen_model_client = OpenAIChatCompletionClient(
+#     base_url="https://硅基流动接口地址"
+#     model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
+#     api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
+#     model_capabilities={
+#             "vision": False,
+#             "function_calling": True,
+#             "json_output": True,
+#         },
+#     # timeout = 30
+# )
 
-
+from config import model_client as Qwen_model_client
 # 创建Google Gemini模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",  # 模型名称
-    api_key=os.getenv("GEMINI_API_KEY"),  # 使用环境变量中的API密钥
-    timeout = 10
-)
+
 
 # 创建主代码审查员代理
 lead_reviewer = AssistantAgent(
@@ -51,12 +47,14 @@ lead_reviewer = AssistantAgent(
     """,
 )
 
+from config import model_client_v3 as model_client
+
 # 创建助理代码审查员代理
 assistant_reviewer = AssistantAgent(
     "assistant_reviewer",
     model_client=model_client,
    system_message="""你是助理代码审查员。通过检查代码格式、识别可能的错误以及验证文档是否完整来协助主要审查员。
-   如果代码满足所有项目要求且无需进一步修改，请在回复结尾处包含"APPROVED".""",
+   如果代码满足所有项目要求且无需进一步修改，中文回复，请在回复结尾处包含"APPROVED".""",
 )
 
 # 定义终止条件，当主评审代理在回复中提到"APPROVED"时停止

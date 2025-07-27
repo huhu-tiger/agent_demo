@@ -19,6 +19,20 @@ model_client = OpenAIChatCompletionClient(
     model_info=model_info,
 )
 
+
+model_client_v3 = OpenAIChatCompletionClient(
+    model="deepseek-v3",
+    base_url="http://39.155.179.5:57885/v1",
+    api_key="",
+    model_info={
+        "vision": False,
+        "function_calling": False,
+        "json_output": True,
+        "family": ModelFamily.UNKNOWN,
+        "structured_output": True,
+    },
+)
+
 model_client_vl = OpenAIChatCompletionClient(
     model="Qwen2.5-VL-7B-Instruct",
     base_url="http://39.155.179.4:9116/v1",
