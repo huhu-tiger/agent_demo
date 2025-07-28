@@ -7,8 +7,8 @@
 Created on Sun Mar 16 07:58:06 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import os
@@ -17,23 +17,28 @@ from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_agentchat.ui import Console
+from autogen_core.model_context import BufferedChatCompletionContext
 
 # 创建硅基流动客户端
-Qwen_model_client = OpenAIChatCompletionClient(
-    base_url="https://硅基流动接口地址"
-    model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
-    api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
-    model_capabilities={
-            "vision": False,
-            "function_calling": True,
-            "json_output": True,
-        },
-    # timeout = 30
-    parallel_tool_calls=False,  # type: ignore
-)
+# Qwen_model_client = OpenAIChatCompletionClient(
+#     base_url="https://硅基流动接口地址"
+#     model='Qwen/Qwen2.5-7B-Instruct',  # 模型名称
+#     api_key=os.getenv("SILICON_FLOW_API_KEY"),  # 使用环境变量中的API密钥
+#     model_capabilities={
+#             "vision": False,
+#             "function_calling": True,
+#             "json_output": True,
+#         },
+#     # timeout = 30
+#     parallel_tool_calls=False,  # type: ignore
+# )
+from config import model_client as Qwen_model_client
 
 # 创建智能体。
-assistant = AssistantAgent("assistant", model_client=Qwen_model_client)
+assistant = AssistantAgent("assistant", 
+        model_client=Qwen_model_client,
+        model_context=BufferedChatCompletionContext(buffer_size=1)  # 只保留最近2条
+)
 
 # 创建团队，设置最大轮数为 1。
 team = RoundRobinGroupChat([assistant], max_turns=1)
@@ -42,7 +47,7 @@ async def main():
     task = "写一首关于海洋的四行诗。"
     while True:
         # 运行对话并流式传输到控制台。
-        stream = team.run_stream(task=task)
+        stream = team.run_stream(task=task)  # 每轮执行一次 max_turns=1
         # 在脚本中运行时使用 asyncio.run(...)。
         await Console(stream)
         # 获取用户响应。
