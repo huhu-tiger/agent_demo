@@ -63,12 +63,12 @@ async def main():
         # print("返回：",result.messages[-1].content)
         # print(result)
         if result.messages[-1].type == 'HandoffMessage':
-            # 如果代理触发 HandoffTermination，等待用户输入反馈并继续运行
+            # 如果代理触发 HandoffTermination，等待用户输入反馈并继续运行，   TODO 全聚德
             task = input(f"{result.messages[-1].content}（输入 'exit' 退出）：")
             if task.lower().strip() == "exit":
                 break
         else:
-            return result.messages[-1].content
+            return result.messages[-1].content  
     
   
         

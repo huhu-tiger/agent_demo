@@ -9,8 +9,8 @@ Created on Mon Mar 15 08:25:46 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 
@@ -21,14 +21,14 @@ from autogen_agentchat.messages import TextMessage
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_core import CancellationToken
-from google import genai
+# from google import genai
 
 # 设置模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-)
-
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+# )
+from config import model_client
 # 创建一个 AssistantAgent 代理
 assistant_agent = AssistantAgent(
     name="assistant_agent",
@@ -60,8 +60,11 @@ async def load_state_and_continue_task(agent_state):
         system_message="你是一个智能家庭助手，可以帮助用户管理待办事项。",
         model_client=model_client,
     )
+    print(agent_state['llm_context']["messages"])
+    # print(agent_state.llm_context.messages)
     await new_assistant_agent.load_state(agent_state)
-    print("\n状态已加载。")
+
+    print("\n状态已加载。") 
 
     # 继续执行任务，询问上次记录的待办事项
     response = await new_assistant_agent.on_messages(
@@ -70,7 +73,10 @@ async def load_state_and_continue_task(agent_state):
     )
     print("\n继续任务的响应：")
     print(response.chat_message.content)
+    # print(response.inner_messages)
+    # print(response.chat_message)
 
 # 运行整个流程
 agent_state = asyncio.run(run_agent_and_save_state())
+print("--------------------------------")
 asyncio.run(load_state_and_continue_task(agent_state))

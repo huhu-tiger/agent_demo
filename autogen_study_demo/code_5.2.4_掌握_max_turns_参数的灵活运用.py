@@ -16,7 +16,6 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_agentchat.ui import Console
 from autogen_core.model_context import BufferedChatCompletionContext
 
 # 创建硅基流动客户端

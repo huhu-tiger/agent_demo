@@ -9,8 +9,8 @@ Created on Mon Mar 15 08:25:46 2025
 """
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import os
@@ -22,10 +22,10 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 
 #设置模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-)
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+# )
 
 
 # Ollama_model_client = OpenAIChatCompletionClient(
@@ -39,8 +39,8 @@ model_client = OpenAIChatCompletionClient(
 #     },
 #     # timeout = 10
 # )
-
-
+from config import model_client
+model_client.model_info["multiple_system_messages"]=True
 # 初始化用户记忆
 user_memory = ListMemory()
 
@@ -80,8 +80,10 @@ async def main():
 
     await add_preferences()
     await import_preferences()
+    print("--------------------------------")
     await query_preferences("用户A")
     await update_preferences()
+    print("--------------------------------")
     await query_preferences("用户A")
     
     #使用memory进行一次实际的对话
