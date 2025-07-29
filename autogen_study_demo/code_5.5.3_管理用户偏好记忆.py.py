@@ -8,8 +8,8 @@
 Created on Mon Mar 15 08:25:46 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.ui import Console
@@ -42,6 +42,8 @@ async def get_weather(city: str, units: str = "imperial") -> str:
 #     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了GEMINI_API_KEY
 # )
 from config import model_client
+
+model_client.model_info['multiple_system_messages'] = True
 
 # 创建助理代理，包含记忆和工具
 assistant_agent = AssistantAgent(

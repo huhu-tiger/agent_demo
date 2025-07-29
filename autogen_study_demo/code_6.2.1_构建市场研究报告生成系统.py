@@ -8,14 +8,14 @@
 Created on Mon Mar 15 08:25:46 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 
 from typing import Sequence
 import os
-from google import genai
+# from google import genai
 from autogen_agentchat.agents import AssistantAgent, UserProxyAgent
 from autogen_agentchat.conditions import MaxMessageTermination, TextMentionTermination
 from autogen_agentchat.messages import AgentEvent, ChatMessage
@@ -25,17 +25,19 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 import asyncio
 
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-    # timeout = 10
-)
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+#     # timeout = 10
+# )
+from config import model_client as Ollama_model_client
+
 
 # 模拟数据收集工具
 def collect_market_data(query: str) -> str:

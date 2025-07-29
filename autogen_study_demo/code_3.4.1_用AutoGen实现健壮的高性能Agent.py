@@ -38,7 +38,7 @@ def basic_customer_service(query: str) -> str:
 #     model="gemini-2.0-flash",
 #     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了GEMINI_API_KEY
 # )
-from config import model_client
+from config import model_client_qwen_plus as model_client
 
 # 使用 Cache.MEMORY 指定内存缓存
 @cached( ttl=3600,  serializer=JsonSerializer(), 

@@ -8,13 +8,13 @@
 Created on Mon Mar 15 08:25:46 2025
 """
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import os
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.conditions import TextMentionTermination, ExternalTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
@@ -23,18 +23,18 @@ import asyncio
 
 
 
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-    # timeout = 10
-)
-
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+#     # timeout = 10
+# )
+from config import model_client as Ollama_model_client
 # 定义旅行规划师智能体
 planner_agent = AssistantAgent(
     "planner_agent",
@@ -70,11 +70,11 @@ summary_agent = AssistantAgent(
 
 # 设置终止条件
 termination = TextMentionTermination("TERMINATE")
-
+external_termination = ExternalTermination()
 # 创建 GroupChat
 group_chat = RoundRobinGroupChat(
     [planner_agent,local_agent, budget_agent, summary_agent],
-    termination_condition=termination
+    termination_condition=termination | external_termination
 )
 
 

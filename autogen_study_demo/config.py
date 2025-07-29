@@ -17,6 +17,7 @@ model_client = OpenAIChatCompletionClient(
     base_url=base_url,
     api_key=api_key,
     model_info=model_info,
+    timeout=120
 )
 
 
@@ -50,6 +51,20 @@ model_client_vl = OpenAIChatCompletionClient(
 model_client_vl_plus = OpenAIChatCompletionClient(
     model="qwen-vl-plus-2025-01-25",
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key="sk-b5e591f6a4354b34bf34b26afc20969e",
+    model_info={
+        "vision": True,
+        "function_calling": True,
+        "json_output": True,
+        "family": ModelFamily.UNKNOWN,
+        "structured_output": True,
+    },
+)
+
+model_client_qwen_plus = OpenAIChatCompletionClient(
+    model="qwen-plus-latest",
+    # base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    base_url="http://39.155.179.5:57888/compatible-mode/v1",
     api_key="sk-b5e591f6a4354b34bf34b26afc20969e",
     model_info={
         "vision": True,
