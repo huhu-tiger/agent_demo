@@ -10,8 +10,8 @@ Created on Wed Mar 19 16:13:28 2025
 
 
 
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import Swarm
@@ -41,18 +41,18 @@ async def check_inventory(devices: List[str]) -> Dict[str, bool]:
     return {d: inventory.get(d, False) for d in devices}
 
 # 初始化模型客户端
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-    # timeout = 10
-)
-
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+#     # timeout = 10
+# )
+from config import model_client as Ollama_model_client
 # 定义各角色智能体
 project_manager = AssistantAgent(
     "project_manager",

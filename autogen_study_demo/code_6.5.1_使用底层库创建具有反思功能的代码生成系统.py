@@ -25,7 +25,49 @@ import asyncio
 from dataclasses import dataclass
 import json
 
+import logging
+import re
 
+class BetterUnicodeFormatter(logging.Formatter):
+    """
+    一个更健壮的日志格式化器，可以解码最终日志消息中的 unicode 转义序列。
+    它使用正则表达式来避免处理已解码字符时出错。
+    """
+    def format(self, record):
+        # 首先，让父类处理初始的格式化（例如，msg % args）。
+        formatted_string = super().format(record)
+        
+        # 安全地从最终格式化的字符串中解码 unicode 转义序列。
+        try:
+            # 这个正则表达式会查找所有的 \\uXXXX 序列并进行替换。
+            # 如果字符串中已经包含了 unicode 字符，它不会失败。
+            return re.sub(
+                r'\\u([0-9a-fA-F]{4})',
+                lambda m: chr(int(m.group(1), 16)),
+                formatted_string
+            )
+        except Exception:
+            # 如果发生任何意想不到的错误，只需返回原始字符串。
+            return formatted_string
+
+# --- 清理并配置日志 ---
+# 获取根日志记录器并移除所有现有的处理器，以防止重复日志。
+root_logger = logging.getLogger()
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# 创建一个带有我们自定义格式化器的新处理器
+handler = logging.StreamHandler()
+formatter = BetterUnicodeFormatter('%(levelname)s:%(name)s:%(message)s')
+handler.setFormatter(formatter)
+
+# 将我们的处理器添加到根日志记录器
+root_logger.addHandler(handler)
+
+# 设置所需的日志级别
+root_logger.setLevel(logging.INFO)  # 其他库的默认级别
+logging.getLogger("autogen_core").setLevel(logging.DEBUG)  # autogen_core 的特定级别
+logging.getLogger("autogen_core.events").setLevel(logging.DEBUG) # 同时为事件日志启用
 # 设置 LLM 客户端
 # model_client = OpenAIChatCompletionClient(
 #     model="gemini-2.0-flash",
@@ -158,7 +200,7 @@ Code: <Your code>""",
                     messages.append(UserMessage(content=m.task, source="User"))
                 else:
                     raise ValueError(f"意外的消息类型：{m}")
-            logging.info(f"messages: {messages}")
+            logging.info(f"111111messages: {messages}")
             # 使用聊天完成 API 生成修订。
             response = await self._model_client.create(messages, cancellation_token=ctx.cancellation_token)
             assert isinstance(response.content, str)
@@ -269,49 +311,7 @@ None: 如果没有找到，返回 None
         await self.publish_message(result, topic_id=TopicId("default", self.id.key))
 
             
-import logging
-import re
 
-class BetterUnicodeFormatter(logging.Formatter):
-    """
-    一个更健壮的日志格式化器，可以解码最终日志消息中的 unicode 转义序列。
-    它使用正则表达式来避免处理已解码字符时出错。
-    """
-    def format(self, record):
-        # 首先，让父类处理初始的格式化（例如，msg % args）。
-        formatted_string = super().format(record)
-        
-        # 安全地从最终格式化的字符串中解码 unicode 转义序列。
-        try:
-            # 这个正则表达式会查找所有的 \\uXXXX 序列并进行替换。
-            # 如果字符串中已经包含了 unicode 字符，它不会失败。
-            return re.sub(
-                r'\\u([0-9a-fA-F]{4})',
-                lambda m: chr(int(m.group(1), 16)),
-                formatted_string
-            )
-        except Exception:
-            # 如果发生任何意想不到的错误，只需返回原始字符串。
-            return formatted_string
-
-# --- 清理并配置日志 ---
-# 获取根日志记录器并移除所有现有的处理器，以防止重复日志。
-root_logger = logging.getLogger()
-for handler in root_logger.handlers[:]:
-    root_logger.removeHandler(handler)
-
-# 创建一个带有我们自定义格式化器的新处理器
-handler = logging.StreamHandler()
-formatter = BetterUnicodeFormatter('%(levelname)s:%(name)s:%(message)s')
-handler.setFormatter(formatter)
-
-# 将我们的处理器添加到根日志记录器
-root_logger.addHandler(handler)
-
-# 设置所需的日志级别
-root_logger.setLevel(logging.WARNING)  # 其他库的默认级别
-logging.getLogger("autogen_core").setLevel(logging.DEBUG)  # autogen_core 的特定级别
-logging.getLogger("autogen_core.events").setLevel(logging.DEBUG) # 同时为事件日志启用
 
 
 

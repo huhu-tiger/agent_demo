@@ -10,8 +10,8 @@ Created on Wed Mar 19 16:13:28 2025
 
 
 # #兼容spyder运行
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import asyncio
@@ -24,17 +24,17 @@ from autogen_agentchat.agents import AssistantAgent
 
 
 
-Ollama_model_client = OpenAIChatCompletionClient(
-    model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
-    base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
-    api_key="Ollama",
-    model_capabilities={
-        "vision": False,
-        "function_calling": True,
-        "json_output": True,
-    },
-)
-
+# Ollama_model_client = OpenAIChatCompletionClient(
+#     model="qwen2.5:32b-instruct-q5_K_M",      #使用qwen32模型
+#     base_url=os.getenv("OWN_OLLAMA_URL_165"), #从环境变量里获得本地ollama地址
+#     api_key="Ollama",
+#     model_capabilities={
+#         "vision": False,
+#         "function_calling": True,
+#         "json_output": True,
+#     },
+# )
+from config import model_client as Ollama_model_client
 
 async def main() -> None:
     
