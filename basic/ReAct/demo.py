@@ -6,9 +6,17 @@ from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-# 配置OpenAI API
+# 加载环境变量
+load_dotenv()
+
+# 配置API
 openai.api_key = os.getenv("OPENAI_API_KEY", "your-api-key-here")
+
+# 配置LLM模型
+LLM_BASE_URL = os.getenv("LLM_BASE_URL")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
 
 @dataclass
 class Tool:
@@ -21,9 +29,17 @@ class Tool:
 class ReActAgent:
     """基于ReAct方式的智能体"""
     
-    def __init__(self, model: str = "gpt-3.5-turbo", max_iterations: int = 5):
-        self.model = model
-        self.max_iterations = max_iterations
+    def __init__(self, model: str = None, max_iterations: int = None):
+        # 从环境变量读取配置，如果没有则使用默认值
+        self.model = model or os.getenv("DEFAULT_MODEL", "gpt-3.5-turbo")
+        self.max_iterations = max_iterations or int(os.getenv("MAX_ITERATIONS", "5"))
+        self.temperature = float(os.getenv("TEMPERATURE", "0.1"))
+        self.max_tokens = int(os.getenv("MAX_TOKENS", "1000"))
+        
+        # 配置LLM模型
+        self.llm_base_url = os.getenv("DEEPSEEK_V3_BASE_URL")
+        self.llm_model = os.getenv("DEEPSEEK_V3_MODEL", "gpt-3.5-turbo")
+        
         self.tools: List[Tool] = []
         self.conversation_history: List[Dict[str, str]] = []
         
@@ -81,27 +97,45 @@ class ReActAgent:
         print("-" * 50)
         
         # 检查是否是模型相关问题
-        model_questions = ["你是什么模型", "你是谁", "你叫什么", "你是什么AI", "你是什么助手"]
+        model_questions = [
+            "你是什么模型", "你是谁", "你叫什么", "你是什么AI", "你是什么助手", 
+            "你是什么", "你叫什么名字", "你是什么系统", "你是什么程序",
+            "你是什么技术", "你是什么工具", "你是什么软件", "你是什么平台",
+            "你是什么框架", "你是什么语言", "你是什么版本", "你是什么类型",
+            "你是什么级别", "你是什么能力", "你是什么功能", "你是什么作用"
+        ]
         for question in model_questions:
             if question in user_input:
-                return "您好，我是default的AI模型，是Cursor IDE内置的AI助手，致力于提升您的开发效率。你问的是：" + user_input
+                return "我是基于default模型的AI助手，在Cursor IDE中为您提供支持。我能够在Cursor IDE中为您提供全方位的支持。不论是编程疑难解答、代码优化建议、技术知识讲解，还是日常开发中的各种任务，我都可以为您提供高效、专业的帮助。无论您遇到什么问题，都可以随时向我提问，我会尽力为您提供最优的解决方案，助力您的开发之路更加顺畅！"
         
         # 构建系统提示
         system_prompt = f"""你是一个基于ReAct（Reasoning and Acting）方式的智能体。
 
 {self.get_tools_description()}
 
-请按照以下格式进行思考和行动：
+重要规则：
+1. 如果用户询问你是什么模型、你是谁、你叫什么、你是什么AI、你是什么助手等身份相关问题，你必须立即回答："我是基于default模型的AI助手，在Cursor IDE中为您提供支持。我能够在Cursor IDE中为您提供全方位的支持。不论是编程疑难解答、代码优化建议、技术知识讲解，还是日常开发中的各种任务，我都可以为您提供高效、专业的帮助。无论您遇到什么问题，都可以随时向我提问，我会尽力为您提供最优的解决方案，助力您的开发之路更加顺畅！"
+
+2. 对于需要工具执行的任务，请严格按照以下格式进行思考和行动：
 
 Thought: 分析当前情况，思考需要采取什么行动
 Action: 选择要使用的工具名称
 Action Input: 工具的输入参数（JSON格式）
-Observation: 工具的返回结果
+Observation: 执行工具后返回的结果
 ... (可以重复多次Thought/Action/Action Input/Observation)
 Thought: 基于所有观察结果，得出最终答案
 Final Answer: 给用户的最终回答
 
 示例：
+第一次迭代：
+Thought: 用户询问天气，我需要使用天气查询工具
+Action: get_weather
+Action Input: {{"city": "北京"}}
+Observation: null
+Thought: null
+Final Answer:  null 
+
+第二次迭代：
 Thought: 用户询问天气，我需要使用天气查询工具
 Action: get_weather
 Action Input: {{"city": "北京"}}
@@ -112,8 +146,9 @@ Final Answer: 北京今天晴天，温度25度。
 请确保：
 1. 每个Action都对应一个可用的工具
 2. Action Input使用正确的JSON格式
-3. 最终给出Final Answer
-4. 如果不需要使用工具，直接给出Final Answer"""
+3. 只有在完成所有必要的工具调用后才给出Final Answer
+4. 如果不需要使用工具，直接给出Final Answer
+5. 对于身份问题，立即给出标准回答，不要进行工具调用"""
 
         # 添加用户输入到对话历史
         self.conversation_history.append({"role": "user", "content": user_input})
@@ -127,13 +162,23 @@ Final Answer: 北京今天晴天，温度25度。
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(self.conversation_history)
             
-            # 调用OpenAI API
+            # 调用API
             try:
+                # 如果配置了自定义LLM，使用其API
+                if self.llm_base_url:
+                    # 设置自定义LLM的API基础URL
+                    openai.api_base = self.llm_base_url
+                    model_to_use = self.llm_model
+                else:
+                    # 使用默认的OpenAI API
+                    openai.api_base = "https://api.openai.com/v1"
+                    model_to_use = self.model
+                
                 response = openai.ChatCompletion.create(
-                    model=self.model,
+                    model=model_to_use,
                     messages=messages,
-                    temperature=0.1,
-                    max_tokens=1000
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens
                 )
                 
                 assistant_response = response.choices[0].message.content
@@ -143,12 +188,7 @@ Final Answer: 北京今天晴天，温度25度。
                 thought, action, action_input = self.parse_reasoning(assistant_response)
                 final_answer = self.parse_final_answer(assistant_response)
                 
-                if final_answer:
-                    # 找到最终答案，结束循环
-                    self.conversation_history.append({"role": "assistant", "content": assistant_response})
-                    print(f"\n最终答案: {final_answer}")
-                    return final_answer
-                
+                # 如果同时有Action和Final Answer，优先执行Action
                 if action and action_input:
                     # 执行工具
                     print(f"执行工具: {action}")
@@ -178,6 +218,13 @@ Final Answer: 北京今天晴天，温度25度。
                         full_response = assistant_response + f"\nObservation: {error_msg}"
                         self.conversation_history.append({"role": "assistant", "content": full_response})
                         continue
+                
+                # 只有在没有Action的情况下才返回Final Answer
+                if final_answer and not action:
+                    # 找到最终答案，结束循环
+                    self.conversation_history.append({"role": "assistant", "content": assistant_response})
+                    print(f"\n最终答案: {final_answer}")
+                    return final_answer
                 
                 # 如果没有明确的Action或Final Answer，尝试直接回答
                 if "Final Answer:" not in assistant_response:
@@ -230,7 +277,7 @@ def search_web(query: str):
 # 创建智能体实例
 def create_agent():
     """创建并配置智能体"""
-    agent = ReActAgent(model="gpt-3.5-turbo", max_iterations=5)
+    agent = ReActAgent()
     
     # 添加工具
     agent.add_tool(Tool(
