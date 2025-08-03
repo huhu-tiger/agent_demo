@@ -126,22 +126,25 @@ Observation: 执行工具后返回的结果
 Thought: 基于所有观察结果，得出最终答案
 Final Answer: 给用户的最终回答
 
-示例：
-第一次迭代：
-Thought: 用户询问天气，我需要使用天气查询工具
-Action: get_weather
-Action Input: {{"city": "北京"}}
-Observation: null
-Thought: null
-Final Answer:  null 
+示例1：
+Thought: 埃菲尔铁塔有多高？
+Action: get_height
+Action Input: {{"artifact": "埃菲尔铁塔"}}
+Observation: 埃菲尔铁塔的高度约为330米（包含天线）。
+Thought: 搜索结果显示了高度。我已经得到答案了。
+Final Answer: 埃菲尔铁塔的高度约为330米。
 
-第二次迭代：
-Thought: 用户询问天气，我需要使用天气查询工具
-Action: get_weather
-Action Input: {{"city": "北京"}}
-Observation: 北京今天晴天，温度25度
-Thought: 我已经获得了天气信息，可以给出答案
-Final Answer: 北京今天晴天，温度25度。
+示例2：
+Thought: 用户需要番茄炒蛋食谱并检查冰箱。这个任务分两步：第一步找食谱，第二步检查冰箱。我先用 find_recipe 工具找食谱。
+Action: find_recipe
+Action Input: {{"dish": "番茄炒蛋"}}
+Observation: 简单的番茄炒蛋食谱：将2个鸡蛋打散，2个番茄切块。热油，先炒鸡蛋，盛出。再热油，炒番茄至软烂，加入鸡蛋，放盐调味即可。
+Thought: 好的，我已经有食谱了。食谱需要西红柿。现在我需要用 check_fridge 工具看看冰箱里有没有西红柿。
+Action: check_fridge
+Action Input: {{"item": "西红柿"}}
+Observation: 冰箱检查结果：有3个西红柿。
+Thought: 我找到了食谱，并且确认了冰箱里有西红柿。可以回答问题了。
+Final Answer: 简单的番茄炒蛋食谱是：鸡蛋打散，番茄切块。先炒鸡蛋，再炒番茄，混合后加盐调味。冰箱里有3个西红柿。
 
 请确保：
 1. 每个Action都对应一个可用的工具
