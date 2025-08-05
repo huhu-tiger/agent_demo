@@ -9,8 +9,8 @@ Created on Thu Mar 20 15:56:48 2025
 """
 
 
-import nest_asyncio
-nest_asyncio.apply()
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 import asyncio
@@ -28,11 +28,12 @@ from autogen_agentchat.teams import RoundRobinGroupChat
 
 
 #设置模型客户端
-model_client = OpenAIChatCompletionClient(
-    model="gemini-2.0-flash",
-    api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
-)
+# model_client = OpenAIChatCompletionClient(
+#     model="gemini-2.0-flash",
+#     api_key=os.getenv("GEMINI_API_KEY"),  # 确保在环境中设置了 GEMINI_API_KEY
+# )
 
+from config import model_client
 # 创建 AssistantAgent，名为 "assistant"。
 writer = AssistantAgent("assistant", model_client=model_client,
                         handoffs=["user"],
@@ -150,3 +151,4 @@ def main():
 if __name__ == "__main__":
 
     main()
+    ## streamlit run code_6.6.1_实现基于web界面的智能体.py
