@@ -1,0 +1,14 @@
+# Mem0AI 依赖
+mem0ai>=0.1.0
+
+# AutoGen 相关依赖
+autogen-agentchat>=0.6.4
+autogen-core>=0.6.4
+autogen-ext>=0.6.4
+
+# OpenAI 相关
+openai>=1.97.0
+
+# 其他必要依赖
+python-dotenv>=1.1.1
+asyncio 
