@@ -1,8 +1,8 @@
 import os 
 import logging
 
-# model="Qwen3-235B-A22B-Instruct-2507"
-model="Qwen3-235B"
+model="Qwen3-235B-A22B-Instruct-2507"
+# model="Qwen3-235B"
 base_url="http://39.155.179.5:8002/v1"
 api_key= ""
 
@@ -39,8 +39,8 @@ def setup_logging():
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
     
-    # 配置日志格式
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(lineno)d - %(message)s'
+    # 配置日志格式 - 添加文件名显示
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
     date_format = '%Y-%m-%d %H:%M:%S'
     
     # 配置根日志器
