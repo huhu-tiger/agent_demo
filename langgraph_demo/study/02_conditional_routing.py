@@ -46,8 +46,6 @@ def create_llm(model_name=None, temperature=0.1):
 # 默认模型实例
 llm = create_llm()
 
-# 自定义模型实例 - context7
-context7_llm = create_llm("context7", temperature=0.1)
 
 # ============================================================================
 # 条件路由状态定义
@@ -519,6 +517,12 @@ def test_conditional_routing():
         # todo 可视化 
     from show_graph import show_workflow_graph
     show_workflow_graph(graph, "判断路由工作流",logger)
+
+
+    # from IPython.display import Image
+
+    # Image(graph.get_graph().draw_png())
+    
     # 测试输入
     test_inputs = [
         "你是什么模型？",                    # 测试模型信息路径
