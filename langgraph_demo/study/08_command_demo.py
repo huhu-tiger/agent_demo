@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 LangGraph Command 真实中断示例
-学习要点：Command 对象的使用方式和应用场景
+学习要点：Command 对象的使用方式和应用场景（含人工中断/恢复）
 
 Command 是 LangGraph 中的一个核心概念，用于：
 1. 状态更新和控制流：同时更新状态并决定下一个节点
-2. 中断和恢复：暂停执行等待用户输入
+2. 中断和恢复：暂停执行等待用户输入（interrupt + Command(resume)）
 3. 工具调用：返回工具执行结果并更新状态
 4. 子图导航：在嵌套图中进行跳转
+
+实现思路参考（Approve or Reject 模式）：
+- 官方文档（Human-in-the-Loop / Approve or reject）：https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/add-human-in-the-loop/#approve-or-reject
+- 关键点：启用 checkpointer；命中 interrupt 时返回特殊键 __interrupt__；使用 Command(resume=...) 恢复
 
 作者: AI Assistant
 来源: LangGraph 官方文档学习
@@ -17,6 +21,7 @@ import os
 import uuid
 from typing import TypedDict, List, Literal
 from typing_extensions import Annotated
+import operator
 
 # LangGraph 核心组件
 from langgraph.graph import StateGraph, START, END  # 状态图、开始/结束节点
@@ -45,10 +50,14 @@ class InterruptState(TypedDict):
     - 暂停执行等待用户输入：使用 interrupt() 函数
     - 使用 Command 恢复执行：使用 Command(resume=...) 恢复
     - 使用 Command 动态路由：使用 Command(goto=...) 根据用户反馈决定流程
+    
+    关键说明：
+    - steps 使用 Annotated[List[str], operator.add]，表示各节点返回的 steps 列表会被 LangGraph 以“加法”方式合并，形成完整执行路径
+    - 这避免了在每个节点里手动拼接历史步骤，代码更简洁、语义更清晰
     """
     user_input: str      # 用户输入，在中断时收集，恢复时使用
     processed_result: str # 处理结果，最终输出的内容
-    steps: List[str]     # 执行步骤，记录工作流的执行历史
+    steps: Annotated[List[str], operator.add]     # 执行步骤（可累加）
     decision: str        # 决策结果，由 decision 节点设置
 
 def get_user_input(prompt: str, options: List[str] = None) -> str:
@@ -115,11 +124,13 @@ def demo_complete_interrupt_resume():
         """
         人工交互节点
         
-        使用 interrupt 暂停执行，等待用户输入
+        使用 interrupt 暂停执行，等待用户输入。
+        说明：interrupt 会把 payload 暂存在持久层，并返回给调用方（result['__interrupt__']）。
+        之后需用 Command(resume=...) 继续执行，本节点会从头再次执行，并拿到 resume 的值。
         """
         logger.info("🔧 人工交互节点: 等待用户输入")
         
-        # 使用 interrupt 暂停执行
+        # 使用 interrupt 暂停执行（payload 可为任意可序列化对象）
         interrupt_data = {
             "message": "请提供反馈信息",
             "current_input": state.get("user_input", ""),
@@ -128,7 +139,7 @@ def demo_complete_interrupt_resume():
         
         logger.info(f"   ⏸️ 中断执行，等待用户输入: {interrupt_data}")
         
-        # 调用 interrupt 函数 - 这里会真正暂停执行
+        # 调用 interrupt 函数 - 这里会真正暂停执行，返回值在恢复时提供
         user_feedback = interrupt(interrupt_data)
         
         logger.info(f"   📥 收到用户反馈: {user_feedback}")
@@ -249,46 +260,40 @@ def demo_complete_interrupt_resume():
         logger.info(f"📋 初始状态: {initial_state}")
         
         # 第一次执行 - 会在这里中断
+        # 说明：要使用 interrupt 暂停/恢复，必须启用 checkpointer（上方 compile 已传入 InMemorySaver）
+        # 说明：thread_id 用于标识一次可恢复的执行会话，必须在初次执行与恢复时保持一致
         config = {"configurable": {"thread_id": thread_id}}
         
-        try:
-            result = graph.invoke(initial_state, config=config)
+        result = graph.invoke(initial_state, config=config)
+        
+        # 按官方模式检查 __interrupt__ 并恢复执行（参考文档 Approve or reject）
+        # 文档: https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/add-human-in-the-loop/#approve-or-reject
+        if "__interrupt__" in result:
+            logger.info("⏸️ 检测到中断 (__interrupt__)，等待人工输入以恢复")
+            logger.info(f"   中断信息: {result['__interrupt__']}")
+            
+            user_feedback = get_user_input(
+                "请对申请内容提供反馈",
+                ["通过", "拒绝", "需要更多信息"]
+            )
+            logger.info(f"🔄 用户输入: {user_feedback}")
+            
+            # 使用 Command(resume=...) 恢复执行
+            resume_command = Command(resume=user_feedback)
+            logger.info(f"📝 恢复命令: {resume_command}")
+            result = graph.invoke(resume_command, config=config)
+        else:
             logger.info("✅ 工作流执行完成（无中断）")
-            logger.info(f"📊 最终结果: {result}")
-            
-        except Exception as e:
-            logger.info(f"🔍 捕获异常: {type(e).__name__}: {str(e)}")
-            
-            # 检查是否包含中断信息
-            if hasattr(e, '__interrupt__') or '__interrupt__' in str(e):
-                logger.info("⏸️ 检测到中断")
-                logger.info("💡 现在可以恢复执行")
-                
-                # 获取用户真实输入
-                user_feedback = get_user_input(
-                    "请对申请内容提供反馈",
-                    ["通过", "拒绝", "需要更多信息"]
-                )
-                
-                logger.info(f"🔄 用户输入: {user_feedback}")
-                
-                try:
-                    # 使用 Command(resume=...) 恢复执行
-                    resume_command = Command(resume=user_feedback)
-                    logger.info(f"📝 恢复命令: {resume_command}")
-                    
-                    # 恢复执行
-                    result = graph.invoke(resume_command, config=config)
-                    
-                    logger.info(f"✅ 恢复执行完成")
-                    logger.info(f"📊 最终结果: {result}")
-                    logger.info(f"🎯 执行路径: {' -> '.join(result['steps'])}")
-                    logger.info(f"📤 处理结果: {result['processed_result']}")
-                    
-                except Exception as resume_error:
-                    logger.error(f"恢复执行时出错: {resume_error}")
-            else:
-                logger.error(f"执行工作流时出错: {e}")
+        
+        # 输出最终结果
+        logger.info(f"📊 最终结果: {result}")
+        if 'steps' in result:
+            try:
+                logger.info(f"🎯 执行路径: {' -> '.join(result['steps'])}")
+            except Exception:
+                logger.info(f"🎯 执行路径: {result['steps']}")
+        if 'processed_result' in result:
+            logger.info(f"📤 处理结果: {result['processed_result']}")
                 
     except Exception as e:
         logger.error(f"执行工作流时出错: {e}")
