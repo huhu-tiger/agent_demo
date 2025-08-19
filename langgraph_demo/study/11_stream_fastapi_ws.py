@@ -262,10 +262,11 @@ def create_node_tracking_workflow():
     
     return workflow
 
-# ===== FastAPI 应用与SSE流式接口 =====
+# ===== FastAPI 应用与 WebSocket/SSE 流式接口 =====
 from fastapi import FastAPI, Body, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import WebSocket, WebSocketDisconnect
 
 app = FastAPI(title="LangGraph Streaming API", version="0.1.0")
 app.add_middleware(
@@ -651,6 +652,54 @@ def history(
 
     return StreamingResponse(_history_sse_generator(), media_type="text/event-stream")
 
+# ===== 新增：WebSocket 端点 =====
+@app.websocket("/ws")
+async def websocket_stream(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            try:
+                message_text = await websocket.receive_text()
+            except WebSocketDisconnect:
+                break
+            except Exception:
+                # 未能解析消息，发送错误并继续
+                await websocket.send_text(_format_sse({"status": "error", "message": "invalid message"}, event="error"))
+                continue
+            try:
+                body = json.loads(message_text) if message_text else {}
+            except Exception:
+                body = {}
+            user_input = body.get("user_input") or ""
+            stream_mode = body.get("stream_mode") or "updates"
+            thread_id = body.get("thread_id")
+            checkpoint = body.get("checkpoint")
+            replay_history = bool(body.get("replay_history", False))
+            if not user_input:
+                await websocket.send_text(_format_sse({"status": "error", "message": "missing user_input"}, event="error"))
+                continue
+            # 将生成的事件通过 WebSocket 逐条发送（文本帧）
+            for line in _node_sse_generator(
+                user_input,
+                stream_mode=stream_mode,
+                thread_id=thread_id,
+                checkpoint=checkpoint,
+                replay_history=replay_history,
+            ):
+                await websocket.send_text(line)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_text(_format_sse({"status": "error", "message": str(e)}, event="error"))
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
 def test_node_name_tracking():
     """测试节点名称跟踪功能"""
     print("🚀 节点名称跟踪测试")
@@ -780,7 +829,7 @@ if __name__ == "__main__":
     # 默认启动 FastAPI 服务（使用导入字符串以启用 reload/workers）
     # todo cd langgraph_demo/study 
     import uvicorn
-    uvicorn.run("11_stream_fastapi:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("11_stream_fastapi_ws:app", host="0.0.0.0", port=8000, reload=True)
     
     print("\n✅ 节点名称自定义示例完成！")
     print("\n📚 学习要点总结:")
