@@ -38,6 +38,50 @@ llm = ChatOpenAI(
     max_tokens=1000
 )
 
+# 新增：是否以 JSON（SSE 风格）输出流
+JSON_STREAM = True
+
+def sse_send(event: str, payload: dict):
+    """以 SSE 风格输出一条 JSON 事件：
+    event: <event-name>\n
+    data: {json}\n\n
+    """
+    try:
+        data_str = json.dumps(payload, ensure_ascii=False)
+    except Exception as e:
+        data_str = json.dumps({"error": f"无法序列化payload: {str(e)}"}, ensure_ascii=False)
+    print(f"event: {event}")
+    print(f"data: {data_str}")
+    print()
+    sys.stdout.flush()
+
+def serialize_state_snapshot(state: dict) -> dict:
+    """提取可序列化的关键状态快照，避免复杂对象导致的 JSON 化失败。"""
+    safe_state = {}
+    for key in ["current_agent", "step_count", "next_agent", "task_description"]:
+        if key in state:
+            safe_state[key] = state[key]
+    # 共享消息精简
+    msgs = state.get("shared_messages", []) or []
+    safe_msgs = []
+    for m in msgs:
+        content = getattr(m, "content", None)
+        if content is None:
+            content = str(m)
+        msg_type = m.__class__.__name__ if hasattr(m, "__class__") else "Message"
+        # 限制长度，防止过长输出
+        if isinstance(content, str) and len(content) > 1000:
+            content = content[:1000] + "..."
+        safe_msgs.append({"type": msg_type, "content": content})
+    safe_state["shared_messages"] = safe_msgs
+    # 执行日志仅保留最后 3 条
+    logs = state.get("execution_log", [])
+    if isinstance(logs, list):
+        safe_state["execution_log"] = logs[-3:]
+    else:
+        safe_state["execution_log"] = []
+    return safe_state
+
 # ===== 主图状态定义 =====
 class MainState(TypedDict):
     """主图状态"""
@@ -169,7 +213,17 @@ def print_log(message: str, level: str = "INFO", agent: str = "SYSTEM", line_num
         "END": "🏁"
     }
     emoji = emoji_map.get(level, "ℹ️")
-    print(f"[{timestamp}] {emoji} [{agent}:L{line_number}] {message}")
+    if JSON_STREAM:
+        payload = {
+            "timestamp": timestamp,
+            "level": level,
+            "agent": agent,
+            "line": line_number,
+            "message": message
+        }
+        sse_send("log", payload)
+    else:
+        print(f"[{timestamp}] {emoji} [{agent}:L{line_number}] {message}")
 
 # ===== 规划者子图节点函数 =====
 def planner_analyzer(state: PlannerState) -> PlannerState:
@@ -586,9 +640,10 @@ def create_multi_agent_workflow():
 # ===== 测试和演示函数 =====
 def test_multi_agent_system():
     """测试多智能体系统"""
-    print("\n" + "="*80)
-    print("🚀 多智能体系统测试（子图方式）")
-    print("="*80)
+    if not JSON_STREAM:
+        print("\n" + "="*80)
+        print("🚀 多智能体系统测试（子图方式）")
+        print("="*80)
     
     # 创建工作流
     print_log("初始化多智能体工作流", "INFO", "SYSTEM")
@@ -602,9 +657,10 @@ def test_multi_agent_system():
     ]
     
     for i, user_input in enumerate(test_inputs, 1):
-        print(f"\n{'='*60}")
-        print(f"📝 测试 {i}: {user_input}")
-        print(f"{'='*60}")
+        if not JSON_STREAM:
+            print(f"\n{'='*60}")
+            print(f"📝 测试 {i}: {user_input}")
+            print(f"{'='*60}")
         
         # 准备输入状态
         inputs = {
@@ -619,6 +675,8 @@ def test_multi_agent_system():
         
         try:
             print_log(f"开始执行测试 {i}", "START", "SYSTEM")
+            if JSON_STREAM:
+                sse_send("start", {"test_index": i, "input": user_input})
             config = {}
             config["thread_id"] = "test"
             # 执行工作流
@@ -641,50 +699,58 @@ def test_multi_agent_system():
                     final_result = getattr(chunk, 'values', chunk)
                     print_log(f"数据块 {chunk_count}: 对象类型，提取values属性", "DEBUG", "SYSTEM")
                 
-                # 显示当前执行状态
+                # 显示/推送当前执行状态
                 if final_result and isinstance(final_result, dict):
                     current_agent = final_result.get('current_agent', 'unknown')
                     step_count = final_result.get('step_count', 0)
                     if current_agent != 'unknown':
                         print_log(f"当前执行: {current_agent} (步骤 {step_count})", "INFO", "SYSTEM")
+                    if JSON_STREAM:
+                        sse_send("state", serialize_state_snapshot(final_result))
             
             if final_result is None:
                 raise Exception("未能获取有效的执行结果")
             
             print_log(f"流式执行完成，共处理 {chunk_count} 个数据块", "SUCCESS", "SYSTEM")
             print_log(f"测试 {i} 执行完成", "SUCCESS", "SYSTEM")
-            print(f"\n✅ 执行完成")
-            print(f"📊 总步骤数: {final_result.get('step_count', 0)}")
-            print(f"🤖 最终智能体: {final_result.get('current_agent', 'unknown')}")
-            print(f"📦 流式数据块数量: {chunk_count}")
-            
-            # 显示执行日志
-            print("\n📋 执行日志:")
-            for log in final_result.get("execution_log", []):
-                print(f"  {log['emoji']} {log['agent_name']}: {log['action']}")
-                print(f"     时间: {log['timestamp']}")
-                if "result" in log:
-                    result_preview = log["result"]
-                    if len(result_preview) > 100:
-                        result_preview = result_preview[:100] + "..."
-                    print(f"     结果: {result_preview}")
-                print()
-            
-            # 显示最终结果
-            print("🎯 最终结果:")
-            shared_messages = final_result.get("shared_messages", [])
-            for msg in shared_messages:
-                if hasattr(msg, 'content'):
-                    content = msg.content
-                    if len(content) > 300:
-                        content = content[:300] + "..."
-                    print(f"  {content}")
-            
-            print(f"\n{'='*60}")
-            
+            if JSON_STREAM:
+                sse_send("end", serialize_state_snapshot(final_result))
+            if not JSON_STREAM:
+                print(f"\n✅ 执行完成")
+                print(f"📊 总步骤数: {final_result.get('step_count', 0)}")
+                print(f"🤖 最终智能体: {final_result.get('current_agent', 'unknown')}")
+                print(f"📦 流式数据块数量: {chunk_count}")
+                
+                # 显示执行日志
+                print("\n📋 执行日志:")
+                for log in final_result.get("execution_log", []):
+                    print(f"  {log['emoji']} {log['agent_name']}: {log['action']}")
+                    print(f"     时间: {log['timestamp']}")
+                    if "result" in log:
+                        result_preview = log["result"]
+                        if len(result_preview) > 100:
+                            result_preview = result_preview[:100] + "..."
+                        print(f"     结果: {result_preview}")
+                    print()
+                
+                # 显示最终结果
+                print("🎯 最终结果:")
+                shared_messages = final_result.get("shared_messages", [])
+                for msg in shared_messages:
+                    if hasattr(msg, 'content'):
+                        content = msg.content
+                        if len(content) > 300:
+                            content = content[:300] + "..."
+                        print(f"  {content}")
+                
+                print(f"\n{'='*60}")
+                
         except Exception as e:
             print_log(f"测试 {i} 执行失败: {e}", "ERROR", "SYSTEM")
-            print(f"❌ 错误: {e}")
+            if not JSON_STREAM:
+                print(f"❌ 错误: {e}")
+            if JSON_STREAM:
+                sse_send("error", {"test_index": i, "error": str(e)})
 
 def demonstrate_subgraph_structure():
     """演示子图结构"""
@@ -734,23 +800,26 @@ def show_agent_configurations():
     print("✅ 统一的配置管理")
 
 if __name__ == "__main__":
-    print("🎯 LangGraph 多智能体示例 - 子图方式实现")
-    print("=" * 60)
-    
-    # 显示智能体配置
-    show_agent_configurations()
-    
-    # 演示子图结构
-    demonstrate_subgraph_structure()
-    
-    # 测试多智能体系统
-    test_multi_agent_system()
-    
-    print("\n✅ 多智能体子图示例完成！")
-    print("\n📚 学习要点总结:")
-    print("1. 子图架构: 每个智能体都是独立的子图")
-    print("2. 状态隔离: 子图有独立的状态空间")
-    print("3. 模块化设计: 便于测试和维护")
-    print("4. 主图协调: 统一的状态管理和路由")
-    print("5. 最终结果共享: 智能体间只传递必要信息")
-    print("6. 可扩展性: 支持复杂的内部逻辑") 
+    if JSON_STREAM:
+        test_multi_agent_system()
+    else:
+        print("🎯 LangGraph 多智能体示例 - 子图方式实现")
+        print("=" * 60)
+        
+        # 显示智能体配置
+        show_agent_configurations()
+        
+        # 演示子图结构
+        demonstrate_subgraph_structure()
+        
+        # 测试多智能体系统
+        test_multi_agent_system()
+        
+        print("\n✅ 多智能体子图示例完成！")
+        print("\n📚 学习要点总结:")
+        print("1. 子图架构: 每个智能体都是独立的子图")
+        print("2. 状态隔离: 子图有独立的状态空间")
+        print("3. 模块化设计: 便于测试和维护")
+        print("4. 主图协调: 统一的状态管理和路由")
+        print("5. 最终结果共享: 智能体间只传递必要信息")
+        print("6. 可扩展性: 支持复杂的内部逻辑") 
