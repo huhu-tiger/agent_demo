@@ -533,6 +533,175 @@ class AdvancedMemoryDemo:
         memories.sort(key=lambda x: x["importance"], reverse=True)
         return memories[:limit]
     
+    def search_by_tags_exact(self, tags: List[str], limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        按标签精确筛选（不是相似度）
+        
+        Args:
+            tags: 要搜索的标签列表
+            limit: 结果数量限制
+            
+        Returns:
+            搜索结果列表
+        """
+        namespace = ("demo_user", "advanced_memories")
+        
+        # 获取所有记忆
+        all_results = self.store.search(namespace, query="", limit=100)
+        
+        memories = []
+        for item in all_results:
+            item_tags = item.value.get("tags", [])
+            # 检查是否有匹配的标签
+            matched_tags = [tag for tag in tags if tag in item_tags]
+            if matched_tags:  # 只返回有匹配标签的记忆
+                memories.append({
+                    "id": item.key,
+                    "content": item.value.get("content", ""),
+                    "emotional_context": item.value.get("emotional_context", ""),
+                    "importance": item.value.get("importance", 0.5),
+                    "tags": item_tags,
+                    "matched_tags": matched_tags,
+                    "score": item.score,
+                    "search_type": "Tag精确筛选",
+                    "created_at": item.value.get("created_at", ""),
+                    "access_count": item.value.get("access_count", 0)
+                })
+        
+        # 按重要性排序
+        memories.sort(key=lambda x: x["importance"], reverse=True)
+        return memories[:limit]
+    
+    def search_by_tags_partial(self, partial_tag: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        按标签部分匹配筛选
+        
+        Args:
+            partial_tag: 部分标签
+            limit: 结果数量限制
+            
+        Returns:
+            搜索结果列表
+        """
+        namespace = ("demo_user", "advanced_memories")
+        
+        # 获取所有记忆
+        all_results = self.store.search(namespace, query="", limit=100)
+        
+        memories = []
+        for item in all_results:
+            item_tags = item.value.get("tags", [])
+            # 检查是否有部分匹配的标签
+            matched_tags = [tag for tag in item_tags if partial_tag in tag]
+            if matched_tags:  # 只返回有匹配标签的记忆
+                memories.append({
+                    "id": item.key,
+                    "content": item.value.get("content", ""),
+                    "emotional_context": item.value.get("emotional_context", ""),
+                    "importance": item.value.get("importance", 0.5),
+                    "tags": item_tags,
+                    "matched_tags": matched_tags,
+                    "score": item.score,
+                    "search_type": "Tag部分匹配",
+                    "created_at": item.value.get("created_at", ""),
+                    "access_count": item.value.get("access_count", 0)
+                })
+        
+        # 按重要性排序
+        memories.sort(key=lambda x: x["importance"], reverse=True)
+        return memories[:limit]
+    
+    def filter_memories_by_criteria(self, 
+                                  tags: Optional[List[str]] = None,
+                                  emotional_context: Optional[str] = None,
+                                  importance_min: Optional[float] = None,
+                                  importance_max: Optional[float] = None,
+                                  memory_type: Optional[str] = None,
+                                  limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        按多个条件筛选记忆
+        
+        Args:
+            tags: 标签列表
+            emotional_context: 情感上下文
+            importance_min: 最小重要性
+            importance_max: 最大重要性
+            memory_type: 记忆类型
+            limit: 结果数量限制
+            
+        Returns:
+            筛选结果列表
+        """
+        namespace = ("demo_user", "advanced_memories")
+        
+        # 获取所有记忆
+        all_results = self.store.search(namespace, query="", limit=100)
+        
+        memories = []
+        for item in all_results:
+            memory_data = item.value
+            
+            # 检查标签条件
+            if tags:
+                item_tags = memory_data.get("tags", [])
+                if not any(tag in item_tags for tag in tags):
+                    continue
+            
+            # 检查情感条件
+            if emotional_context:
+                item_emotional = memory_data.get("emotional_context", "")
+                if emotional_context.lower() not in item_emotional.lower():
+                    continue
+            
+            # 检查重要性条件
+            importance = memory_data.get("importance", 0.5)
+            if importance_min is not None and importance < importance_min:
+                continue
+            if importance_max is not None and importance > importance_max:
+                continue
+            
+            # 检查记忆类型条件
+            if memory_type:
+                item_type = memory_data.get("memory_type", "")
+                if memory_type.lower() not in item_type.lower():
+                    continue
+            
+            memories.append({
+                "id": item.key,
+                "content": memory_data.get("content", ""),
+                "emotional_context": memory_data.get("emotional_context", ""),
+                "importance": importance,
+                "tags": memory_data.get("tags", []),
+                "memory_type": memory_data.get("memory_type", ""),
+                "score": item.score,
+                "search_type": "多条件筛选",
+                "created_at": memory_data.get("created_at", ""),
+                "access_count": memory_data.get("access_count", 0)
+            })
+        
+        # 按重要性排序
+        memories.sort(key=lambda x: x["importance"], reverse=True)
+        return memories[:limit]
+    
+    def get_all_available_tags(self) -> List[str]:
+        """
+        获取所有可用的标签
+        
+        Returns:
+            标签列表
+        """
+        namespace = ("demo_user", "advanced_memories")
+        
+        # 获取所有记忆
+        all_results = self.store.search(namespace, query="", limit=100)
+        
+        all_tags = set()
+        for item in all_results:
+            tags = item.value.get("tags", [])
+            all_tags.update(tags)
+        
+        return sorted(list(all_tags))
+    
     def get_high_importance_memories(self, threshold: float = 0.8) -> List[Dict[str, Any]]:
         """
         获取高重要性记忆
