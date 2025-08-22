@@ -39,6 +39,11 @@ llm = ChatOpenAI(
     base_url=config.base_url,
 )
 
+# 添加详细的调试日志
+logger.info(f"[配置] 模型名称: {MODEL_NAME}")
+logger.info(f"[配置] API基础URL: {config.base_url}")
+logger.info(f"[配置] API密钥: {config.api_key[:10]}..." if config.api_key else "None")
+
 class Attendee(BaseModel):
     name: str = Field(description="参会人姓名，若缺失可用邮箱前缀代替")
     email: Optional[str] = Field(default=None, description="参会人邮箱，可为空")
@@ -128,45 +133,34 @@ def _demo_text() -> str:
     )
 
 
-def lagnchian_llm_structured_output_main():
-    """演示纯 LangChain 的结构化输出（with_structured_output）用于日程抽取。"""
-    # 运行前检查环境变量，避免用户未配置时直接报错
-    if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("OPENAI_BASE_URL"):
-        print(
-            "未检测到 OPENAI_API_KEY；如使用 OpenAI 兼容网关，请设置 OPENAI_API_KEY（与可选的 OPENAI_BASE_URL）。\n"
-            "示例跳过实际调用，仅展示将被解析的示例文本：\n"
-        )
-        print(_demo_text())
-        return
-
-    data = extract_calendar_data(_demo_text())
-    # 结构日志
-    try:
-        logger.info("[LangChain] 返回类型: %s", type(data).__name__)
-        logger.info("[LangChain] meetings 数量: %s", getattr(data, "meetings", []) and len(data.meetings))
-        logger.info(
-            "[LangChain] 返回结构(JSON):\n%s",
-            json.dumps(json.loads(data.model_dump_json()), ensure_ascii=False, indent=2),
-        )
-    except Exception as e:
-        logger.exception("[LangChain] 日志打印失败: %s", e)
-    # 以 JSON 打印，便于查看结构
-    # print(json.dumps(json.loads(data.model_dump_json()), ensure_ascii=False, indent=2))
-
-
 def trustcall_llm_structured_output_main():
     """使用 trustcall 将偏好抽取为 Preferences，演示校验失败→自动修复。"""
     from trustcall import create_extractor
 
-    # 将 Preferences 作为“工具”绑定给 LLM，强制以结构化工具调用返回
-    extractor = create_extractor(
-        llm,
-        tools=[Preferences],
-        tool_choice="Preferences",
-    )
+    logger.info("[trustcall] 开始创建提取器...")
+    try:
+        # 将 Preferences 作为"工具"绑定给 LLM，强制以结构化工具调用返回
+        extractor = create_extractor(
+            llm,
+            tools=[Preferences],
+            tool_choice="Preferences",
+        )
+        
+        logger.info("[trustcall] 提取器创建成功")
+    except Exception as e:
+        logger.error(f"[trustcall] 提取器创建失败: {e}")
+        logger.exception("[trustcall] 详细错误信息:")
+        return
 
-    # 使用 messages 形式调用；少于 3 个食品将触发验证并自动补全
-    result = extractor.invoke({"messages": [("user", "我喜欢苹果派和冰淇淋。")]})
+    logger.info("[trustcall] 开始调用提取器...")
+    try:
+        # 使用 messages 形式调用；少于 3 个食品将触发验证并自动补全
+        result = extractor.invoke({"messages": [("user", "我喜欢苹果派和冰淇淋。")]})
+        logger.info("[trustcall] 调用成功")
+    except Exception as e:
+        logger.error(f"[trustcall] 调用失败: {e}")
+        logger.exception("[trustcall] 详细错误信息:")
+        return
 
     # 结构日志
     try:
@@ -204,66 +198,99 @@ def trustcall_complex_schema_main():
     """
     from trustcall import create_extractor
 
-    # 现有的人员记录（示例，索引将作为 json_doc_id 暗示顺序）
-    existing_persons = [
-        {
-            "name": "Emma Thompson",
-            "relationship": "College friend",
-            "notes": [
-                "Loves hiking",
-                "Works in marketing",
-                "Has a dog named Max",
-            ],
-        },
-        {
-            "name": "Michael Chen",
-            "relationship": "Coworker",
-            "notes": [
-                "Great at problem-solving",
-                "Vegetarian",
-                "Plays guitar",
-            ],
-        },
-        {
-            "name": "Sarah Johnson",
-            "relationship": "Neighbor",
-            "notes": [
-                "Has two kids",
-                "Loves gardening",
-                "Makes amazing cookies",
-            ],
-        },
-    ]
+    logger.info("[trustcall-complex] 开始创建复杂模式提取器...")
+    try:
+        # 现有的人员记录（示例，索引将作为 json_doc_id 暗示顺序）
+        # 注意：字段名必须与 Person 模型完全匹配
+        existing_persons = [
+            {
+                "username": "Emma Thompson",
+                "notes": [
+                    "Loves hiking",
+                    "Works in marketing",
+                    "Has a dog named Max",
+                ],
+                "age": None,
+                "gender": None,
+                "phone": None,
+                "email": None,
+                "address": None,
+                "company": None,
+                "position": None,
+            },
+            {
+                "username": "Michael Chen",
+                "notes": [
+                    "Great at problem-solving",
+                    "Vegetarian",
+                    "Plays guitar",
+                ],
+                "age": None,
+                "gender": None,
+                "phone": None,
+                "email": None,
+                "address": None,
+                "company": None,
+                "position": None,
+            },
+            {
+                "username": "Sarah Johnson",
+                "notes": [
+                    "Has two kids",
+                    "Loves gardening",
+                    "Makes amazing cookies",
+                ],
+                "age": None,
+                "gender": None,
+                "phone": None,
+                "email": None,
+                "address": None,
+                "company": None,
+                "position": None,
+            },
+        ]
 
-    conversation = (
-        """
+        conversation = (
+            """
 - Emma 提到昨晚带着她的新小狗（一只名叫 Sunny 的金毛寻回犬）散步。
 - Michael 刚开始在一家初创公司担任数据科学家，并考虑转为纯素饮食。
 - Sarah 的大儿子刚升入初中；她正专注于特殊教育，对教学充满热情。
 - 我还认识了 Olivia Davis，她是一名 27 岁的平面设计师，热爱艺术与素描，周末在当地动物收容所做志愿者。
-        """.strip()
-    )
+            """.strip()
+        )
 
-    # 将 Person 作为工具绑定，并开启 enable_inserts 允许创建新记录
-    # existing 以 {SchemaName: 当前列表} 的形式传入，信号：在此基础上进行更新/插入
-    extractor = create_extractor(
-        llm,
-        tools=[Person],
-        tool_choice="any",
-        enable_inserts=True,
-    )
+        # 将 Person 作为工具绑定，并开启 enable_inserts 允许创建新记录
+        # existing 以 {SchemaName: 当前列表} 的形式传入，信号：在此基础上进行更新/插入
+        extractor = create_extractor(
+            llm,
+            tools=[Person],
+            tool_choice="Person",
+            enable_inserts=True,
+        )
+        logger.info("[trustcall-complex] 提取器创建成功")
+    except Exception as e:
+        logger.error(f"[trustcall-complex] 提取器创建失败: {e}")
+        logger.exception("[trustcall-complex] 详细错误信息:")
+        return
 
-    result = extractor.invoke(
-        {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"根据以下对话更新现有人员记录并创建新记录：\n\n{conversation}",
-                }
-            ],
-            "existing": {"Person": existing_persons},
-        }
-    )
+    logger.info("[trustcall-complex] 开始调用提取器...")
+    try:
+        result = extractor.invoke(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"根据以下对话更新现有人员记录并创建新记录：\n\n{conversation}",
+                    }
+                ],
+                "existing": {"Person": existing_persons},
+            }
+        )
+        logger.info("[trustcall-complex] 调用成功")
+    except Exception as e:
+        logger.error(f"[trustcall-complex] 调用失败: {e}")
+        logger.exception("[trustcall-complex] 详细错误信息:")
+        return
 
     # 结构日志
     try:
@@ -366,20 +393,39 @@ def trustcall_extract_new_records_demo():
         try:
             j = r.model_dump_json(indent=2)
             logger.info("[trustcall-new] Person(JSON):\n%s", j)
-    
+
         except Exception:
             j = json.dumps(r, ensure_ascii=False, indent=2)
             logger.info("[trustcall-new] Person(dictJSON):\n%s", j)
-      
+
         print()
 
+def test_api_connection():
+    """测试 API 连接是否正常"""
+    logger.info("[测试] 开始测试 API 连接...")
+    
+    try:
+        # 简单的测试调用
+        response = llm.invoke("你好，请回复'连接成功'")
+        logger.info(f"[测试] API 连接成功，响应: {response.content}")
+        return True
+    except Exception as e:
+        logger.error(f"[测试] API 连接失败: {e}")
+        logger.exception("[测试] 详细错误信息:")
+        return False
+
+
 if __name__ == "__main__":
-    lagnchian_llm_structured_output_main()
+    # 首先测试 API 连接
+    if not test_api_connection():
+        logger.error("API 连接失败，跳过所有测试")
+        exit(1)
+    
 
     # 填补记录，支持在已有数据上更新并支持插入
     trustcall_llm_structured_output_main()
     # 复杂结构示例，支持在已有数据上更新并支持插入
-    trustcall_complex_schema_main()
+    # trustcall_complex_schema_main()
 
     # 提取新记录
     trustcall_extract_new_records_demo()
