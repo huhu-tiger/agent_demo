@@ -234,7 +234,7 @@ def demo_mapreduce():
     # 为每个主题创建一个并行的 generate_joke 任务
     workflow.add_conditional_edges(
         "generate_topics",      # 源节点
-        continue_to_jokes,      # 条件路由函数
+        continue_to_jokes,      # 条件路由函数，使用send 创建并行任务
         ["generate_joke"]       # 目标节点列表
     )
     
@@ -426,7 +426,7 @@ def test_mapreduce():
     
     # 演示高级 MapReduce 模式（文档处理流水线）
     print("="*60 + "LangChain MapReduce" + "="*60)
-    demo_advanced_mapreduce()
+    # demo_advanced_mapreduce()
     
     logger.info("\n" + "="*60)
     logger.info("🎉 MapReduce 演示完成！")
