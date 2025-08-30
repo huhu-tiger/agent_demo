@@ -18,7 +18,6 @@ from typing import Dict, Any, TypedDict, Optional, cast
 from dotenv import load_dotenv
 # from langchain.chat_models import ChatOpenAI
 from langchain_openai import ChatOpenAI
-from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, END
