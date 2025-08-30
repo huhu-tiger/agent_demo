@@ -1,0 +1,16 @@
+{
+  "dockerfile_lines": [],
+  "graphs": {
+    "langsmith_debug_agent": "./demo.py:create_debug_graph"
+  },
+  "python_version": "3.11",
+  "env": ".env",
+  "dependencies": ["."],
+  "host": "127.0.0.1",
+  "langsmith": {
+    "tracing": "${LANGSMITH_TRACING}",
+    "endpoint": "${LANGSMITH_ENDPOINT}",
+    "api_key": "${LANGSMITH_API_KEY}",
+    "project": "${LANGSMITH_PROJECT}"
+  }
+}
